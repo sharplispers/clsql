@@ -1,8 +1,13 @@
-cl-sql (6.7.1-1) unstable; urgency=medium
+cl-sql (6.7.0-2) unstable; urgency=medium
 
-  * New upstream
+  * Update Debian compatibility
 
  -- Kevin M. Rosenberg <kmr@debian.org>  Mon, 20 Jul 2020 19:53:44 +0000
+
+cl-sql (6.7.0-1) unstable; urgency=medium
+  * New upstream
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Tue, 26 Jan 2016 14:40:50 -0700
 
 cl-sql (6.6.3-3) unstable; urgency=medium
 
