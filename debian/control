@@ -1,9 +1,9 @@
 Source: cl-sql
 Section: lisp
-Priority: extra
+Priority: optional
 Maintainer: Kevin M. Rosenberg <kmr@debian.org>
-Build-Depends: dh-lisp, debhelper (>= 7.0.0), libmysqlclient-dev, libpq-dev
-Standards-Version: 3.9.5.0
+Build-Depends: dh-lisp, debhelper (>= 7.0.0), default-libmysqlclient-dev, libpq-dev
+Standards-Version: 4.5.0.2
 Homepage: http://clsql.kpe.io/
 Vcs-Git: git://git.kpe.io/clsql.git
 Vcs-Browser: http://git.kpe.io/?p=clsql.git
@@ -28,7 +28,7 @@ Description: Common UFFI functions for CLSQL database backends
 
 Package: cl-sql-mysql
 Architecture: any
-Depends: cl-sql (= ${source:Version}), cl-sql-uffi (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, libmysqlclient-dev
+Depends: cl-sql (= ${source:Version}), cl-sql-uffi (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, default-libmysqlclient-dev
 Provides: cl-sql-backend
 Description: CLSQL database backend, MySQL
  This package enables you to use the CLSQL data access package

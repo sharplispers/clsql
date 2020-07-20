@@ -83,7 +83,7 @@ clean:
 	[ ! -f Makefile ] || $(MAKE) distclean
 	find . -type f -and -name \*~ -or -name .\*~ -exec rm -f {} \;
 	rm -rf doc/html
-	dh_clean
+	dh_clean W: db-mysql/clsql_mysql.dll uffi/clsql_uffi.dll
 
 install: DH_OPTIONS= install-indep install-arch
 
