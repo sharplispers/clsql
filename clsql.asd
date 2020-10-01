@@ -94,12 +94,8 @@ oriented interface."
 				     (:file "generic-odbc")
 				     (:file "sequences")
 				     (:file "command-object"))
-			:depends-on (functional))))))
-
-
-(defmethod perform ((o test-op) (c (eql (find-system 'clsql))))
-  (operate 'load-op 'clsql-tests)
-  (operate 'test-op 'clsql-tests :force t))
+			:depends-on (functional)))))
+    :in-order-to ((test-op (test-op "clsql-tests"))))
 
 (defmethod perform :after ((o load-op) (c (eql (find-system 'clsql))))
   (let* ((init-var (uffi::getenv "CLSQLINIT"))
@@ -112,4 +108,3 @@ oriented interface."
                         #+(or mswin windows win32 win64 mswindows)
                         (probe-file "c:\\etc\\clsql-init.lisp"))))
     (when init-file (load init-file))))
-
