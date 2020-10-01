@@ -47,5 +47,4 @@
       ((eql (schar *mysql-client-info* 0) #\6)
        (pushnew :mysql-client-v6 cl:*features*))
       (t
-       (error "Unknown mysql client version '~A'." *mysql-client-info*)))))
-
+       (format t "Warning: Unknown mysql client version '~A', verify proper operation." *mysql-client-info*)))))
