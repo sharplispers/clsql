@@ -74,15 +74,6 @@ Description: CLSQL database backend, PostgreSQL via sockets
  server.
  CLSQL is a Common Lisp interface to SQL databases.
 
-Package: cl-sql-sqlite
-Architecture: all
-Depends: cl-sql (= ${source:Version}), libsqlite0-dev, cl-sql-uffi (>= ${source:Version}), ${misc:Depends}
-Provides: cl-sql-backend
-Description: CLSQL database backend, SQLite
- This package enables you to use the CLSQL data access package
- with SQLite databases. 
- CLSQL is a Common Lisp interface to SQL databases.
-
 Package: cl-sql-sqlite3
 Architecture: all
 Depends: cl-sql (= ${source:Version}), libsqlite3-dev, cl-sql-uffi (>= ${source:Version}), ${misc:Depends}

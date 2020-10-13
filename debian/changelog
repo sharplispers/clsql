@@ -1,3 +1,9 @@
+cl-sql (6.7.1-2) unstable; urgency=medium
+
+  * Remove cl-sql-sqlite binary package (closes: 972124)
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Tue, 13 Oct 2020 02:51:11 +0000
+
 cl-sql (6.7.1-1) unstable; urgency=medium
 
   * New upstream
