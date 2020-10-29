@@ -95,7 +95,7 @@ Description: CLSQL database backend, Oracle
 
 Package: cl-sql-tests
 Architecture: all
-Depends: cl-sql, cl-sql-postgresql, cl-sql-postgresql-socket, cl-sql-mysql, cl-sql-sqlite, cl-sql-odbc, cl-rt, ${misc:Depends}
+Depends: cl-sql, cl-sql-postgresql, cl-sql-postgresql-socket, cl-sql-mysql, cl-sql-sqlite3, cl-sql-odbc, cl-rt, ${misc:Depends}
 Suggests: acl-installer, libmyodbc, unixodbc,cl-sql-aodbc 
 Description: Testing suite for CLSQL
  This package contains a test suite for CLSQL. It requires manual
