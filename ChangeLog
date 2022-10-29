@@ -1,3 +1,8 @@
+2022-10-28 Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 6.7.2 release
+	* LICENSE: After consulting with the contributors to CLSQL,
+	CLSQL is now relicensed under MIT license
+
 2016-01-26 Kevin Rosenberg <kevin@rosenberg.net>
 	* Version 6.7.0 release
 	* sql/utils.lisp: Apply patch from Martin Simmons for

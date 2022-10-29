@@ -1,3 +1,9 @@
+cl-sql (6.7.2-1) unstable; urgency=medium
+
+  * LICENSE: CLSQL is now licensed under MIT license
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Thu, 29 Oct 2020 17:35:49 +0000
+
 cl-sql (6.7.1-3) unstable; urgency=medium
 
   * Remove cl-sql-sqlite from cl-sql-tests dependencies (closes: 973358)
