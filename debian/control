@@ -3,7 +3,7 @@ Section: lisp
 Priority: optional
 Maintainer: Kevin M. Rosenberg <kmr@debian.org>
 Build-Depends: dh-lisp, debhelper (>= 11.0.0), default-libmysqlclient-dev, libpq-dev
-Standards-Version: 4.5.0.3
+Standards-Version: 4.6.1.1
 Homepage: http://clsql.kpe.io/
 Vcs-Git: git://git.kpe.io/clsql.git
 Vcs-Browser: http://git.kpe.io/?p=clsql.git
