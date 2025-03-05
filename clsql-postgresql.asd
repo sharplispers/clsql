@@ -14,9 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:clsql-postgresql-system (:use #:asdf #:cl))
-(in-package #:clsql-postgresql-system)
-
 #+(and allegro macosx) (push "so" excl::*load-foreign-types*)
 
 (defsystem clsql-postgresql

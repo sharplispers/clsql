@@ -14,9 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:clsql-sqlite-system (:use #:asdf #:cl))
-(in-package #:clsql-sqlite-system)
-
 (defsystem clsql-sqlite
   :name "cl-sql-sqlite"
   :author "Aurelio Bignoli <aurelio@bignoli.it>"

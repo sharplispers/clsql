@@ -14,9 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:clsql-oracle-system (:use #:asdf #:cl))
-(in-package #:clsql-oracle-system)
-
 ;;; System definition
 
 (defsystem clsql-oracle

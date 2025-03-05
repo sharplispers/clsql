@@ -14,9 +14,6 @@
 
 (push :clsql-cffi cl:*features*)
 
-(defpackage #:clsql-cffi-system (:use #:asdf #:cl))
-(in-package #:clsql-cffi-system)
-
 (defsystem clsql-cffi
     :name "CLSQL-CFFI"
     :author "Kevin Rosenberg <kevin@rosenberg.net>"

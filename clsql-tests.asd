@@ -13,10 +13,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(in-package #:cl-user)
-(defpackage #:clsql-tests-system (:use #:asdf #:cl))
-(in-package #:clsql-tests-system)
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (unless (find-package '#:uffi)
     (asdf:operate 'asdf:load-op 'uffi)))

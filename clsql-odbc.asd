@@ -14,9 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:clsql-odbc-system (:use #:asdf #:cl))
-(in-package #:clsql-odbc-system)
-
 (defsystem clsql-odbc
   :name "clsql-odbc"
   :author "Kevin M. Rosenberg <kmr@debian.org>"

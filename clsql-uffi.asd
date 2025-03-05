@@ -14,11 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(in-package cl-user)
-
-(defpackage clsql-uffi-system (:use #:asdf #:cl))
-(in-package clsql-uffi-system)
-
 (defsystem clsql-uffi
   :name "cl-sql-base"
   :author "Kevin M. Rosenberg <kmr@debian.org>"

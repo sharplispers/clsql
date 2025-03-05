@@ -16,9 +16,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:clsql-postgresql-socket-system (:use #:asdf #:cl))
-(in-package #:clsql-postgresql-socket-system)
-
 ;;; System definition
 
 (defsystem clsql-postgresql-socket3

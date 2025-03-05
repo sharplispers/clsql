@@ -14,9 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:clsql-db2-system (:use #:asdf #:cl))
-(in-package #:clsql-db2-system)
-
 ;;; System definition
 
 (defsystem clsql-db2

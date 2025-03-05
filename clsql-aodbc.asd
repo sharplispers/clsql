@@ -14,9 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:clsql-aodbc-system (:use #:asdf #:cl))
-(in-package #:clsql-aodbc-system)
-
 #+(and allegro (not allegro-cl-trial))
 (defsystem clsql-aodbc
   :name "cl-sql-aodbc"
