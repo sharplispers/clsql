@@ -249,6 +249,14 @@
   (declare (ignore sql))
   nil)
 
+;; Here's a real warhorse of a function!
+
+(declaim (inline listify))
+(defun listify (x)
+  (if (listp x)
+      x
+      (list x)))
+
 (defmethod collect-table-refs ((sql list))
   (loop for i in sql
         appending (listify (collect-table-refs i))))
@@ -908,14 +916,6 @@ uninclusive, and the args from that keyword to the end."
     :initform nil))
   (:documentation
    "An SQL CREATE TABLE statement."))
-
-;; Here's a real warhorse of a function!
-
-(declaim (inline listify))
-(defun listify (x)
-  (if (listp x)
-      x
-      (list x)))
 
 (defmethod output-sql ((stmt sql-create-table) database)
   (flet ((output-column (column-spec)
