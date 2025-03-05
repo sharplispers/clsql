@@ -1,9 +1,9 @@
 Source: cl-sql
 Section: lisp
-Priority: extra
+Priority: optional
 Maintainer: Kevin M. Rosenberg <kmr@debian.org>
-Build-Depends: dh-lisp, debhelper (>= 7.0.0), libmysqlclient-dev, libpq-dev
-Standards-Version: 3.9.5.0
+Build-Depends: dh-lisp, debhelper (>= 11.0.0), default-libmysqlclient-dev, libpq-dev
+Standards-Version: 4.6.1.1
 Homepage: http://clsql.kpe.io/
 Vcs-Git: git://git.kpe.io/clsql.git
 Vcs-Browser: http://git.kpe.io/?p=clsql.git
@@ -28,7 +28,7 @@ Description: Common UFFI functions for CLSQL database backends
 
 Package: cl-sql-mysql
 Architecture: any
-Depends: cl-sql (= ${source:Version}), cl-sql-uffi (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, libmysqlclient-dev
+Depends: cl-sql (= ${source:Version}), cl-sql-uffi (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, default-libmysqlclient-dev
 Provides: cl-sql-backend
 Description: CLSQL database backend, MySQL
  This package enables you to use the CLSQL data access package
@@ -74,15 +74,6 @@ Description: CLSQL database backend, PostgreSQL via sockets
  server.
  CLSQL is a Common Lisp interface to SQL databases.
 
-Package: cl-sql-sqlite
-Architecture: all
-Depends: cl-sql (= ${source:Version}), libsqlite0-dev, cl-sql-uffi (>= ${source:Version}), ${misc:Depends}
-Provides: cl-sql-backend
-Description: CLSQL database backend, SQLite
- This package enables you to use the CLSQL data access package
- with SQLite databases. 
- CLSQL is a Common Lisp interface to SQL databases.
-
 Package: cl-sql-sqlite3
 Architecture: all
 Depends: cl-sql (= ${source:Version}), libsqlite3-dev, cl-sql-uffi (>= ${source:Version}), ${misc:Depends}
@@ -104,7 +95,7 @@ Description: CLSQL database backend, Oracle
 
 Package: cl-sql-tests
 Architecture: all
-Depends: cl-sql, cl-sql-postgresql, cl-sql-postgresql-socket, cl-sql-mysql, cl-sql-sqlite, cl-sql-odbc, cl-rt, ${misc:Depends}
+Depends: cl-sql, cl-sql-postgresql, cl-sql-postgresql-socket, cl-sql-mysql, cl-sql-sqlite3, cl-sql-odbc, cl-rt, ${misc:Depends}
 Suggests: acl-installer, libmyodbc, unixodbc,cl-sql-aodbc 
 Description: Testing suite for CLSQL
  This package contains a test suite for CLSQL. It requires manual

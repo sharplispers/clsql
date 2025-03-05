@@ -57,9 +57,9 @@ else
 	    gcc $(CFLAGS) -fPIC -DPIC -c $(source) -o $(object)
 	    gcc $(LDFLAGS) -fPIC -shared -Wl,-soname=$(base) -lc $(object) -o $(shared64_lib)
 	    rm -f $(object)
-	    @echo "Ensure that you have multiarch i386 build tools if you want to build 32-bit library"
-	    -gcc -m32 $(CFLAGS) -fPIC -DPIC -c $(source) -o $(object)
-	    -gcc -m32 $(LDFLAGS) -fPIC -shared -Wl,-soname=$(base) -lc $(object) -o $(shared_lib)
+	    #@echo "Ensure that you have multiarch i386 build tools if you want to build 32-bit library"
+	    #-gcc -m32 $(CFLAGS) -fPIC -DPIC -c $(source) -o $(object)
+	    #-gcc -m32 $(LDFLAGS) -fPIC -shared -Wl,-soname=$(base) -lc $(object) -o $(shared_lib)
           else
 	    gcc -fPIC -DPIC -c $(source) -o $(object)
 	    ld -shared -soname=$(base) -lc $(object) -o $(shared_lib)

@@ -9,11 +9,10 @@ pkg-pg		:= cl-sql-postgresql
 pkg-pg-socket	:= cl-sql-postgresql-socket
 pkg-aodbc	:= cl-sql-aodbc
 pkg-odbc	:= cl-sql-odbc
-pkg-sqlite	:= cl-sql-sqlite
 pkg-sqlite3	:= cl-sql-sqlite3
 pkg-oracle	:= cl-sql-oracle
 pkg-tests	:= cl-sql-tests
-all-pkgs	:= $(pkg) $(pkg-uffi) $(pkg-mysql) $(pkg-pg) $(pkg-pg-socket) $(pkg-aodbc) $(pkg-odbc) $(pkg-sqlite) $(pkg-sqlite3) $(pkg-tests)
+all-pkgs	:= $(pkg) $(pkg-uffi) $(pkg-mysql) $(pkg-pg) $(pkg-pg-socket) $(pkg-aodbc) $(pkg-odbc) $(pkg-sqlite3) $(pkg-tests)
 
 
 UPSTREAM_VER	:= $(shell sed -n -e "s/${pkg} (\(.*\)-[0-9A-Za-z\.]).*/\1/p" < debian/changelog |head -1)
@@ -28,7 +27,6 @@ srcs-pg		:= $(wildcard db-postgresql/*.lisp)
 srcs-pg-socket	:= $(wildcard db-postgresql-socket/*.lisp)
 srcs-aodbc	:= $(wildcard db-aodbc/*.lisp)
 srcs-odbc	:= $(wildcard db-odbc/*.lisp)
-srcs-sqlite	:= $(wildcard db-sqlite/*.lisp)
 srcs-sqlite3	:= $(wildcard db-sqlite3/*.lisp)
 srcs-oracle	:= $(wildcard db-oracle/*.lisp)
 srcs-tests	:= $(wildcard tests/*.lisp)
@@ -56,8 +54,6 @@ clc-aodbc	:= $(clc-source)/clsql-aodbc
 lispdir-aodbc	:= $(clc-aodbc)/db-aodbc
 clc-odbc	:= $(clc-source)/clsql-odbc
 lispdir-odbc	:= $(clc-odbc)/db-odbc
-clc-sqlite	:= $(clc-source)/clsql-sqlite
-lispdir-sqlite	:= $(clc-sqlite)/db-sqlite
 clc-sqlite3	:= $(clc-source)/clsql-sqlite3
 lispdir-sqlite3	:= $(clc-sqlite3)/db-sqlite3
 clc-oracle	:= $(clc-source)/clsql-oracle
@@ -83,7 +79,7 @@ clean:
 	[ ! -f Makefile ] || $(MAKE) distclean
 	find . -type f -and -name \*~ -or -name .\*~ -exec rm -f {} \;
 	rm -rf doc/html
-	dh_clean
+	dh_clean db-mysql/clsql_mysql.dll uffi/clsql_uffi.dll
 
 install: DH_OPTIONS= install-indep install-arch
 
@@ -98,7 +94,6 @@ install-indep:
 	dh_installdirs -p $(pkg-pg-socket) $(lispdir-pg-socket)
 	dh_installdirs -p $(pkg-aodbc) $(lispdir-aodbc)
 	dh_installdirs -p $(pkg-odbc) $(lispdir-odbc)
-	dh_installdirs -p $(pkg-sqlite) $(lispdir-sqlite)
 	dh_installdirs -p $(pkg-sqlite3) $(lispdir-sqlite3)
 	dh_installdirs -p $(pkg-oracle) $(lispdir-oracle)
 	dh_installdirs -p $(pkg-tests) $(lispdir-tests)
@@ -116,8 +111,6 @@ install-indep:
 	dh_install -p $(pkg-aodbc) clsql-aodbc.asd $(clc-aodbc)
 	dh_install -p $(pkg-odbc) $(srcs-odbc) $(lispdir-odbc)
 	dh_install -p $(pkg-odbc) clsql-odbc.asd $(clc-odbc)
-	dh_install -p $(pkg-sqlite) $(srcs-sqlite) $(lispdir-sqlite)
-	dh_install -p $(pkg-sqlite) clsql-sqlite.asd $(clc-sqlite)
 	dh_install -p $(pkg-sqlite3) $(srcs-sqlite3) $(lispdir-sqlite3)
 	dh_install -p $(pkg-sqlite3) clsql-sqlite3.asd $(clc-sqlite3)
 	dh_install -p $(pkg-oracle) $(srcs-oracle) $(lispdir-oracle)
