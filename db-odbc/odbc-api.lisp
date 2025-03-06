@@ -3,7 +3,7 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; Name:     odbc-api.lisp
-;;;; Purpose:  Low-level ODBC API using UFFI
+;;;; Purpose:  Low-level ODBC API using CFFI
 ;;;; Authors:  Kevin M. Rosenberg and Paul Meurer
 ;;;;
 ;;;; This file, part of CLSQL, is Copyright (c) 2004 by Kevin M. Rosenberg
@@ -29,8 +29,8 @@ May be locally bound to something else if a certain type is necessary.")
     representation of date/time/timestamp.
     By default, returns an iso-timestring.")
 
-(defvar +null-ptr+ (make-null-pointer :byte))
-(defparameter +null-handle-ptr+ (make-null-pointer :void))
+(defvar +null-ptr+ (cffi:null-pointer))
+(defparameter +null-handle-ptr+ (cffi:null-pointer))
 (defvar *info-output* nil
   "Stream to send SUCCESS_WITH_INFO messages.")
 
@@ -42,21 +42,20 @@ May be locally bound to something else if a certain type is necessary.")
                 :message
                 (format nil "string \"~a\" of length ~d is longer than max-length: ~d"
                         ,string ,size ,max-length)))
-      (with-cast-pointer (char-ptr ,ptr :byte)
-        (dotimes (i ,size)
-          (setf (deref-array char-ptr '(:array :byte) i)
-                (char-code (char ,string i))))
-        (setf (deref-array char-ptr '(:array :byte) ,size) 0)))))
+       (dotimes (i ,size)
+         (setf (cffi:mem-aref ,ptr :char i)
+               (char-code (char ,string i))))
+       (setf (cffi:mem-aref ,ptr :char ,size) 0))))
 
 (defmacro with-allocate-foreign-string ((var len) &body body)
-  "Safely does uffi:allocate-foreign-string-- making sure we do the uffi:free-foreign-object"
+  "Safely does cffi:allocate-foreign-alloc making sure we do the cffi:foreign-free"
   `(let ((,var))
     (unwind-protect
          (progn
-           (setf ,var (uffi:allocate-foreign-string ,len))
+           (setf ,var (cffi:foreign-alloc :char :count ,len))
            ,@body)
       (when ,var
-        (uffi:free-foreign-object ,var)))))
+        (cffi:foreign-free ,var)))))
 
 (defmacro with-allocate-foreign-strings (bindings &rest body)
   (if bindings
@@ -68,27 +67,27 @@ May be locally bound to something else if a certain type is necessary.")
 (defun handle-error (henv hdbc hstmt)
   (with-allocate-foreign-strings ((sql-state 256)
                                   (error-message #.$SQL_MAX_MESSAGE_LENGTH))
-   (with-foreign-objects ((error-code #.$ODBC-LONG-TYPE)
-                          (msg-length :short))
-    (SQLError henv hdbc hstmt sql-state
-              error-code error-message
-              #.$SQL_MAX_MESSAGE_LENGTH msg-length)
-    (values
-     (convert-from-foreign-string error-message)
-     (convert-from-foreign-string sql-state)
-     (deref-pointer msg-length :short)
-     (deref-pointer error-code #.$ODBC-LONG-TYPE)))))
+    (cffi:with-foreign-objects ((error-code #.$ODBC-LONG-TYPE)
+                                (msg-length :short))
+      (SQLError henv hdbc hstmt sql-state
+                error-code error-message
+                #.$SQL_MAX_MESSAGE_LENGTH msg-length)
+      (values
+       (cffi:foreign-string-to-lisp error-message)
+       (cffi:foreign-string-to-lisp sql-state)
+       (cffi:mem-ref msg-length :short)
+       (cffi:mem-ref error-code #.$ODBC-LONG-TYPE)))))
 
 (defun sql-state (henv hdbc hstmt)
   (with-allocate-foreign-strings ((sql-state 256)
                                   (error-message #.$SQL_MAX_MESSAGE_LENGTH))
-   (with-foreign-objects ((error-code #.$ODBC-LONG-TYPE)
-                          (msg-length :short))
-    (SQLError henv hdbc hstmt sql-state error-code
-              error-message #.$SQL_MAX_MESSAGE_LENGTH msg-length)
-    (convert-from-foreign-string sql-state)
-    ;; test this: return a keyword for efficiency
-    ;;(%cstring-to-keyword state)
+    (cffi:with-foreign-objects ((error-code #.$ODBC-LONG-TYPE)
+                                (msg-length :short))
+      (SQLError henv hdbc hstmt sql-state error-code
+                error-message #.$SQL_MAX_MESSAGE_LENGTH msg-length)
+      (cffi:foreign-string-to-lisp sql-state)
+      ;; test this: return a keyword for efficiency
+      ;;(%cstring-to-keyword state)
     )))
 
 (defmacro with-error-handling ((&key henv hdbc hstmt (print-info t))
@@ -154,11 +153,11 @@ May be locally bound to something else if a certain type is necessary.")
 
 (defun %new-environment-handle ()
   (let ((henv
-         (with-foreign-object (phenv 'sql-handle)
-           (with-error-handling
-               ()
-             (SQLAllocHandle $SQL_HANDLE_ENV +null-handle-ptr+ phenv)
-             (deref-pointer phenv 'sql-handle)))))
+          (cffi:with-foreign-object (phenv 'sql-handle)
+            (with-error-handling
+                ()
+              (SQLAllocHandle $SQL_HANDLE_ENV +null-handle-ptr+ phenv)
+              (cffi:mem-ref phenv 'sql-handle)))))
     (%set-attr-odbc-version henv $SQL_OV_ODBC3)
     henv))
 
@@ -169,12 +168,12 @@ May be locally bound to something else if a certain type is necessary.")
     (SQLFreeEnv henv)))
 
 (defun %new-db-connection-handle (henv)
-  (with-foreign-object (phdbc 'sql-handle)
-    (setf (deref-pointer phdbc 'sql-handle) +null-handle-ptr+)
+  (cffi:with-foreign-object (phdbc 'sql-handle)
+    (setf (cffi:mem-ref phdbc 'sql-handle) +null-handle-ptr+)
     (with-error-handling
       (:henv henv)
       (SQLAllocHandle $SQL_HANDLE_DBC henv phdbc)
-      (deref-pointer phdbc 'sql-handle))))
+      (cffi:mem-ref phdbc 'sql-handle))))
 
 (defun %free-statement (hstmt option)
   (with-error-handling
@@ -196,27 +195,27 @@ May be locally bound to something else if a certain type is necessary.")
 ;; functional interface
 
 (defun %sql-connect (hdbc server uid pwd)
-  (with-cstrings ((server-ptr server)
-                  (uid-ptr uid)
-                  (pwd-ptr pwd))
+  (cffi:with-foreign-strings ((server-ptr server)
+                              (uid-ptr uid)
+                              (pwd-ptr pwd))
     (with-error-handling
         (:hdbc hdbc)
       (SQLConnect hdbc server-ptr $SQL_NTS uid-ptr
                   $SQL_NTS pwd-ptr $SQL_NTS))))
 
 (defun %sql-driver-connect (hdbc connection-string completion window-handle)
-  (with-cstring (connection-ptr connection-string)
+  (cffi:with-foreign-string (connection-ptr connection-string)
     (with-allocate-foreign-string (completed-connection-string-ptr $SQL_MAX_CONN_OUT)
-      (with-foreign-object (completed-connection-length :short)
-       (with-error-handling
-           (:hdbc hdbc)
-           (SQLDriverConnect hdbc
-                             (or window-handle
-                                 +null-handle-ptr+)
-                             connection-ptr $SQL_NTS
-                             completed-connection-string-ptr $SQL_MAX_CONN_OUT
-                             completed-connection-length
-                             completion))))))
+      (cffi:with-foreign-object (completed-connection-length :short)
+        (with-error-handling
+            (:hdbc hdbc)
+          (SQLDriverConnect hdbc
+                            (or window-handle
+                                +null-handle-ptr+)
+                            connection-ptr $SQL_NTS
+                            completed-connection-string-ptr $SQL_MAX_CONN_OUT
+                            completed-connection-length
+                            completion))))))
 
 (defun %disconnect (hdbc)
   (with-error-handling
@@ -271,12 +270,12 @@ May be locally bound to something else if a certain type is necessary.")
 
 (defun %new-statement-handle (hdbc)
   (let ((statement-handle
-         (with-foreign-object (phstmt 'sql-handle)
-           (with-error-handling
-               (:hdbc hdbc)
-             (SQLAllocHandle $SQL_HANDLE_STMT hdbc phstmt)
-             (deref-pointer phstmt 'sql-handle)))))
-    (if (uffi:null-pointer-p statement-handle)
+          (cffi:with-foreign-object (phstmt 'sql-handle)
+            (with-error-handling
+                (:hdbc hdbc)
+              (SQLAllocHandle $SQL_HANDLE_STMT hdbc phstmt)
+              (cffi:mem-ref phstmt 'sql-handle)))))
+    (if (cffi:null-pointer-p statement-handle)
         (error 'clsql:sql-database-error :message "Received null statement handle.")
         statement-handle)))
 
@@ -317,11 +316,11 @@ May be locally bound to something else if a certain type is necessary.")
       #.$SQL_TABLE_TERM
       #.$SQL_USER_NAME)
      (with-allocate-foreign-string (info-ptr 1024)
-       (with-foreign-object (info-length-ptr :short)
+       (cffi:with-foreign-object (info-length-ptr :short)
         (with-error-handling
             (:hdbc hdbc)
             (SQLGetInfo hdbc info-type info-ptr 1023 info-length-ptr)
-          (convert-from-foreign-string info-ptr)))))
+          (cffi:foreign-string-to-lisp info-ptr)))))
     ;; those returning a word
     ((#.$SQL_ACTIVE_CONNECTIONS
       #.$SQL_ACTIVE_STATEMENTS
@@ -350,16 +349,16 @@ May be locally bound to something else if a certain type is necessary.")
       #.$SQL_QUALIFIER_LOCATION
       #.$SQL_QUOTED_IDENTIFIER_CASE
       #.$SQL_TXN_CAPABLE)
-     (with-foreign-objects ((info-ptr :short)
-                            (info-length-ptr :short))
+     (cffi:with-foreign-objects ((info-ptr :short)
+                                 (info-length-ptr :short))
        (with-error-handling
-        (:hdbc hdbc)
+           (:hdbc hdbc)
          (SQLGetInfo hdbc
                      info-type
                      info-ptr
                      255
                      info-length-ptr)
-         (deref-pointer info-ptr :short)))
+         (cffi:mem-ref info-ptr :short)))
      )
     ;; those returning a long bitmask
     ((#.$SQL_ALTER_TABLE
@@ -407,16 +406,16 @@ May be locally bound to something else if a certain type is necessary.")
       #.$SQL_TIMEDATE_FUNCTIONS
       #.$SQL_TXN_ISOLATION_OPTION
       #.$SQL_UNION)
-     (with-foreign-objects ((info-ptr #.$ODBC-LONG-TYPE)
-                            (info-length-ptr :short))
+     (cffi:with-foreign-objects ((info-ptr #.$ODBC-LONG-TYPE)
+                                 (info-length-ptr :short))
        (with-error-handling
-         (:hdbc hdbc)
+           (:hdbc hdbc)
          (SQLGetInfo hdbc
                      info-type
                      info-ptr
                      255
                      info-length-ptr)
-         (deref-pointer info-ptr #.$ODBC-LONG-TYPE)))
+         (cffi:mem-ref info-ptr #.$ODBC-LONG-TYPE)))
      )
     ;; those returning a long integer
     ((#.$SQL_DEFAULT_TXN_ISOLATION
@@ -430,15 +429,15 @@ May be locally bound to something else if a certain type is necessary.")
       #.$SQL_MAX_CHAR_LITERAL_LEN
       #.$SQL_ACTIVE_ENVIRONMENTS
       )
-     (with-foreign-objects ((info-ptr #.$ODBC-LONG-TYPE)
-                            (info-length-ptr :short))
+     (cffi:with-foreign-objects ((info-ptr #.$ODBC-LONG-TYPE)
+                                 (info-length-ptr :short))
        (with-error-handling
-         (:hdbc hdbc)
+           (:hdbc hdbc)
          (SQLGetInfo hdbc info-type info-ptr 255 info-length-ptr)
-         (deref-pointer info-ptr #.$ODBC-LONG-TYPE))))))
+         (cffi:mem-ref info-ptr #.$ODBC-LONG-TYPE))))))
 
 (defun %sql-exec-direct (sql hstmt henv hdbc)
-  (with-cstring (sql-ptr sql)
+  (cffi:with-foreign-string (sql-ptr sql)
     (with-error-handling
       (:hstmt hstmt :henv henv :hdbc hdbc)
       (SQLExecDirect hstmt sql-ptr $SQL_NTS))))
@@ -454,78 +453,78 @@ May be locally bound to something else if a certain type is necessary.")
     (SQLExecute hstmt)))
 
 (defun result-columns-count (hstmt)
-  (with-foreign-objects ((columns-nr-ptr :short))
+  (cffi:with-foreign-objects ((columns-nr-ptr :short))
     (with-error-handling (:hstmt hstmt)
-                         (SQLNumResultCols hstmt columns-nr-ptr)
-      (deref-pointer columns-nr-ptr :short))))
+      (SQLNumResultCols hstmt columns-nr-ptr)
+      (cffi:mem-ref columns-nr-ptr :short))))
 
 (defun result-rows-count (hstmt)
-  (with-foreign-objects ((row-count-ptr #.$ODBC-LONG-TYPE))
+  (cffi:with-foreign-objects ((row-count-ptr #.$ODBC-LONG-TYPE))
     (with-error-handling (:hstmt hstmt)
-                         (SQLRowCount hstmt row-count-ptr)
-      (deref-pointer row-count-ptr #.$ODBC-LONG-TYPE))))
+      (SQLRowCount hstmt row-count-ptr)
+      (cffi:mem-ref row-count-ptr #.$ODBC-LONG-TYPE))))
 
 ;; column counting is 1-based
 (defun %describe-column (hstmt column-nr)
   (with-allocate-foreign-string (column-name-ptr 256)
-    (with-foreign-objects ((column-name-length-ptr :short)
-                           (column-sql-type-ptr :short)
-                           (column-precision-ptr #.$ODBC-ULONG-TYPE)
-                           (column-scale-ptr :short)
-                           (column-nullable-p-ptr :short))
-     (with-error-handling (:hstmt hstmt)
-         (SQLDescribeCol hstmt column-nr column-name-ptr 256
-                         column-name-length-ptr
-                         column-sql-type-ptr
-                         column-precision-ptr
-                         column-scale-ptr
-                         column-nullable-p-ptr)
-       (values
-        (convert-from-foreign-string column-name-ptr)
-        (deref-pointer column-sql-type-ptr :short)
-        (deref-pointer column-precision-ptr #.$ODBC-ULONG-TYPE)
-        (deref-pointer column-scale-ptr :short)
-        (deref-pointer column-nullable-p-ptr :short))))))
+    (cffi:with-foreign-objects ((column-name-length-ptr :short)
+                                (column-sql-type-ptr :short)
+                                (column-precision-ptr #.$ODBC-ULONG-TYPE)
+                                (column-scale-ptr :short)
+                                (column-nullable-p-ptr :short))
+      (with-error-handling (:hstmt hstmt)
+        (SQLDescribeCol hstmt column-nr column-name-ptr 256
+                        column-name-length-ptr
+                        column-sql-type-ptr
+                        column-precision-ptr
+                        column-scale-ptr
+                        column-nullable-p-ptr)
+        (values
+         (cffi:foreign-string-to-lisp column-name-ptr)
+         (cffi:mem-ref column-sql-type-ptr :short)
+         (cffi:mem-ref column-precision-ptr #.$ODBC-ULONG-TYPE)
+         (cffi:mem-ref column-scale-ptr :short)
+         (cffi:mem-ref column-nullable-p-ptr :short))))))
 
 ;; parameter counting is 1-based
 ;; this function isn't used, which is good because FreeTDS dosn't support it.
 (defun %describe-parameter (hstmt parameter-nr)
-  (with-foreign-objects ((column-sql-type-ptr :short)
-                         (column-precision-ptr #.$ODBC-ULONG-TYPE)
-                         (column-scale-ptr :short)
-                         (column-nullable-p-ptr :short))
+  (cffi:with-foreign-objects ((column-sql-type-ptr :short)
+                              (column-precision-ptr #.$ODBC-ULONG-TYPE)
+                              (column-scale-ptr :short)
+                              (column-nullable-p-ptr :short))
     (with-error-handling
-      (:hstmt hstmt)
+        (:hstmt hstmt)
       (SQLDescribeParam hstmt parameter-nr
                         column-sql-type-ptr
                         column-precision-ptr
                         column-scale-ptr
                         column-nullable-p-ptr)
       (values
-       (deref-pointer column-sql-type-ptr :short)
-       (deref-pointer column-precision-ptr #.$ODBC-ULONG-TYPE)
-       (deref-pointer column-scale-ptr :short)
-       (deref-pointer column-nullable-p-ptr :short)))))
+       (cffi:mem-ref column-sql-type-ptr :short)
+       (cffi:mem-ref column-precision-ptr #.$ODBC-ULONG-TYPE)
+       (cffi:mem-ref column-scale-ptr :short)
+       (cffi:mem-ref column-nullable-p-ptr :short)))))
 
 (defun %column-attributes (hstmt column-nr descriptor-type)
   (with-allocate-foreign-string (descriptor-info-ptr 256)
-    (with-foreign-objects ((descriptor-length-ptr :short)
-                           (numeric-descriptor-ptr #.$ODBC-LONG-TYPE))
-     (with-error-handling
-         (:hstmt hstmt)
-         (SQLColAttributes hstmt column-nr descriptor-type descriptor-info-ptr
-                           256 descriptor-length-ptr
-                           numeric-descriptor-ptr)
-       (values
-        (convert-from-foreign-string descriptor-info-ptr)
-        (deref-pointer numeric-descriptor-ptr #.$ODBC-LONG-TYPE))))))
+    (cffi:with-foreign-objects ((descriptor-length-ptr :short)
+                                (numeric-descriptor-ptr #.$ODBC-LONG-TYPE))
+      (with-error-handling
+          (:hstmt hstmt)
+        (SQLColAttributes hstmt column-nr descriptor-type descriptor-info-ptr
+                          256 descriptor-length-ptr
+                          numeric-descriptor-ptr)
+        (values
+         (cffi:foreign-string-to-lisp descriptor-info-ptr)
+         (cffi:mem-ref numeric-descriptor-ptr #.$ODBC-LONG-TYPE))))))
 
 (defun %prepare-describe-columns (hstmt table-qualifier table-owner
                                    table-name column-name)
-  (with-cstrings ((table-qualifier-ptr table-qualifier)
-                  (table-owner-ptr table-owner)
-                  (table-name-ptr table-name)
-                  (column-name-ptr column-name))
+  (cffi:with-foreign-strings ((table-qualifier-ptr table-qualifier)
+                              (table-owner-ptr table-owner)
+                              (table-name-ptr table-name)
+                              (column-name-ptr column-name))
     (with-error-handling
         (:hstmt hstmt)
       (SQLColumns hstmt
@@ -544,10 +543,10 @@ May be locally bound to something else if a certain type is necessary.")
 (defun %sql-data-sources (henv &key (direction :first))
   (with-allocate-foreign-strings ((name-ptr (1+ $SQL_MAX_DSN_LENGTH))
                                   (description-ptr 1024))
-   (with-foreign-objects ((name-length-ptr :short)
-                          (description-length-ptr :short))
-    (let ((res (with-error-handling
-                   (:henv henv)
+    (cffi:with-foreign-objects ((name-length-ptr :short)
+                                (description-length-ptr :short))
+      (let ((res (with-error-handling
+                     (:henv henv)
                    (SQLDataSources henv
                                    (ecase direction
                                      (:first $SQL_FETCH_FIRST)
@@ -558,10 +557,10 @@ May be locally bound to something else if a certain type is necessary.")
                                    description-ptr
                                    1024
                                    description-length-ptr))))
-      (when (= res $SQL_NO_DATA_FOUND)
-        (values
-          (convert-from-foreign-string name-ptr)
-          (convert-from-foreign-string description-ptr)))))))
+        (when (= res $SQL_NO_DATA_FOUND)
+          (values
+           (cffi:foreign-string-to-lisp name-ptr)
+           (cffi:foreign-string-to-lisp description-ptr)))))))
 
 
 
@@ -586,61 +585,62 @@ May be locally bound to something else if a certain type is necessary.")
     (#.$SQL_TINYINT $SQL_C_STINYINT)
     (#.$SQL_BIT $SQL_C_BIT)))
 
-(def-type byte-pointer-type (* :byte))
-(def-type short-pointer-type (* :short))
-(def-type int-pointer-type (* :int))
-(def-type long-pointer-type (* #.$ODBC-LONG-TYPE))
-(def-type big-pointer-type (* #.$ODBC-BIG-TYPE))
-(def-type float-pointer-type (* :float))
-(def-type double-pointer-type (* :double))
-(def-type string-pointer-type (* :unsigned-char))
+(deftype byte-pointer-type () t)
+(deftype short-pointer-type () t)
+(deftype int-pointer-type () t)
+(deftype long-pointer-type () t)
+(deftype big-pointer-type () t)
+(deftype float-pointer-type () t)
+(deftype double-pointer-type () t)
+(deftype double-pointer-type () t)
+(deftype string-pointer-type () t)
 
 (defun get-cast-byte (ptr)
   (locally (declare (type byte-pointer-type ptr))
-    (deref-pointer ptr :byte)))
+    (cffi:mem-ref ptr :char)))
 
 (defun get-cast-short (ptr)
   (locally (declare (type short-pointer-type ptr))
-    (deref-pointer ptr :short)))
+    (cffi:mem-ref ptr :short)))
 
 (defun get-cast-int (ptr)
   (locally (declare (type int-pointer-type ptr))
-    (deref-pointer ptr :int)))
+    (cffi:mem-ref ptr :int)))
 
 (defun get-cast-long (ptr)
   (locally (declare (type long-pointer-type ptr))
-    (deref-pointer ptr #.$ODBC-LONG-TYPE)))
+    (cffi:mem-ref ptr #.$ODBC-LONG-TYPE)))
 
 (defun get-cast-big (ptr)
   (locally (declare (type big-pointer-type ptr))
-    (deref-pointer ptr #.$ODBC-BIG-TYPE)))
+    (cffi:mem-ref ptr #.$ODBC-BIG-TYPE)))
 
 (defun get-cast-single-float (ptr)
   (locally (declare (type float-pointer-type ptr))
-    (deref-pointer ptr :float)))
+    (cffi:mem-ref ptr :float)))
 
 (defun get-cast-double-float (ptr)
   (locally (declare (type double-pointer-type ptr))
-    (deref-pointer ptr :double)))
+    (cffi:mem-ref ptr :double)))
 
 (defun get-cast-foreign-string (ptr)
   (locally (declare (type string-pointer-type ptr))
-    (convert-from-foreign-string ptr)))
+    (cffi:foreign-string-to-lisp ptr)))
 
 (defun get-cast-binary (ptr len format)
   "FORMAT is one of :unsigned-byte-vector, :bit-vector (:string, :hex-string)"
-  (with-cast-pointer (casted ptr :unsigned-byte)
+  (let ((casted ptr))
     (ecase format
       (:unsigned-byte-vector
        (let ((vector (make-array len :element-type '(unsigned-byte 8))))
          (dotimes (i len)
            (setf (aref vector i)
-                 (deref-array casted '(:array :unsigned-byte) i)))
+                 (cffi:mem-aref casted :unsigned-char i)))
          vector))
       (:bit-vector
        (let ((vector (make-array (ash len 3) :element-type 'bit)))
          (dotimes (i len)
-           (let ((byte (deref-array casted '(:array :byte) i)))
+           (let ((byte (cffi:mem-aref casted :char i)))
              (dotimes (j 8)
                (setf (bit vector (+ (ash i 3) j))
                      (logand (ash byte (- j 7)) 1)))))
@@ -723,25 +723,25 @@ May be locally bound to something else if a certain type is necessary.")
          (long-p (= size +max-precision+))
          (data-ptr
           (case c-type ;; add more?
-            (#.$SQL_C_SLONG (uffi:allocate-foreign-object #.$ODBC-LONG-TYPE))
-            ((#.$SQL_C_DATE #.$SQL_C_TYPE_DATE) (allocate-foreign-object 'sql-c-date))
-            ((#.$SQL_C_TIME #.$SQL_C_TYPE_TIME) (allocate-foreign-object 'sql-c-time))
-            ((#.$SQL_C_TIMESTAMP #.$SQL_C_TYPE_TIMESTAMP) (allocate-foreign-object 'sql-c-timestamp))
-            (#.$SQL_C_FLOAT (uffi:allocate-foreign-object :float))
-            (#.$SQL_C_DOUBLE (uffi:allocate-foreign-object :double))
-            (#.$SQL_C_BIT (uffi:allocate-foreign-object :byte))
-            (#.$SQL_C_STINYINT (uffi:allocate-foreign-object :byte))
-            (#.$SQL_C_SBIGINT (uffi:allocate-foreign-object #.$ODBC-BIG-TYPE))
-            (#.$SQL_C_SSHORT (uffi:allocate-foreign-object :short))
-            (#.$SQL_C_CHAR (uffi:allocate-foreign-string (1+ size)))
-            (#.$SQL_C_BINARY (uffi:allocate-foreign-string (1+ (* 2 size))))
+            (#.$SQL_C_SLONG (cffi:foreign-alloc #.$ODBC-LONG-TYPE))
+            ((#.$SQL_C_DATE #.$SQL_C_TYPE_DATE) (cffi:foreign-alloc '(:struct sql-c-date)))
+            ((#.$SQL_C_TIME #.$SQL_C_TYPE_TIME) (cffi:foreign-alloc '(:struct sql-c-time)))
+            ((#.$SQL_C_TIMESTAMP #.$SQL_C_TYPE_TIMESTAMP) (cffi:foreign-alloc '(:struct sql-c-timestamp)))
+            (#.$SQL_C_FLOAT (cffi:foreign-alloc :float))
+            (#.$SQL_C_DOUBLE (cffi:foreign-alloc :double))
+            (#.$SQL_C_BIT (cffi:foreign-alloc :char))
+            (#.$SQL_C_STINYINT (cffi:foreign-alloc :char))
+            (#.$SQL_C_SBIGINT (cffi:foreign-alloc #.$ODBC-BIG-TYPE))
+            (#.$SQL_C_SSHORT (cffi:foreign-alloc :short))
+            (#.$SQL_C_CHAR (cffi:foreign-alloc :char :count (1+ size)))
+            (#.$SQL_C_BINARY (cffi:foreign-alloc :char :count (1+ (* 2 size))))
             (t
                 ;; Maybe should signal a restartable condition for this?
                 (when *break-on-unknown-data-type*
                   (break "SQL type is ~A, precision ~D, size ~D, C type is ~A"
                          sql-type precision size c-type))
-                (uffi:allocate-foreign-object :byte (1+ size)))))
-         (out-len-ptr (uffi:allocate-foreign-object #.$ODBC-LONG-TYPE)))
+                (cffi:foreign-alloc :char :count (1+ size)))))
+         (out-len-ptr (cffi:foreign-alloc #.$ODBC-LONG-TYPE)))
     (values c-type data-ptr out-len-ptr size long-p)))
 
 (defun fetch-all-rows (hstmt &key free-option flatp)
@@ -803,23 +803,23 @@ May be locally bound to something else if a certain type is necessary.")
           (dotimes (col-nr column-count)
             (let ((data-ptr (aref data-ptrs col-nr))
                   (out-len-ptr (aref out-len-ptrs col-nr)))
-              (when data-ptr (free-foreign-object data-ptr)) ; we *did* allocate them
-              (when out-len-ptr (free-foreign-object out-len-ptr)))))))))
+              (when data-ptr (cffi:foreign-free data-ptr)) ; we *did* allocate them
+              (when out-len-ptr (cffi:foreign-free out-len-ptr)))))))))
 
 ;; to do: factor out common parts, put the sceleton (the obligatory macro part)
 ;; of %do-fetch into sql package (has been done)
 
 (defun %sql-prepare (hstmt sql)
-  (with-cstring (sql-ptr sql)
+  (cffi:with-foreign-string (sql-ptr sql)
     (with-error-handling (:hstmt hstmt)
       (SQLPrepare hstmt sql-ptr $SQL_NTS))))
 
 ;; depending on option, we return a long int or a string; string not implemented
 (defun get-connection-option (hdbc option)
-  (with-foreign-object (param-ptr #.$ODBC-LONG-TYPE)
+  (cffi:with-foreign-object (param-ptr #.$ODBC-LONG-TYPE)
     (with-error-handling (:hdbc hdbc)
-                         (SQLGetConnectOption hdbc option param-ptr)
-      (deref-pointer param-ptr #.$ODBC-LONG-TYPE))))
+      (SQLGetConnectOption hdbc option param-ptr)
+      (cffi:mem-ref param-ptr #.$ODBC-LONG-TYPE))))
 
 (defun set-connection-option (hdbc option param)
   (with-error-handling (:hdbc hdbc)
@@ -837,13 +837,13 @@ May be locally bound to something else if a certain type is necessary.")
     (SQLSetPos hstmt row option lock)))
 
 (defun %sql-extended-fetch (hstmt fetch-type row)
-  (with-foreign-objects ((row-count-ptr #.$ODBC-ULONG-TYPE)
-                         (row-status-ptr :short))
+  (cffi:with-foreign-objects ((row-count-ptr #.$ODBC-ULONG-TYPE)
+                              (row-status-ptr :short))
     (with-error-handling (:hstmt hstmt)
       (SQLExtendedFetch hstmt fetch-type row row-count-ptr
                         row-status-ptr)
-      (values (deref-pointer row-count-ptr #.$ODBC-ULONG-TYPE)
-              (deref-pointer row-status-ptr :short)))))
+      (values (cffi:mem-ref row-count-ptr #.$ODBC-ULONG-TYPE)
+              (cffi:mem-ref row-status-ptr :short)))))
 
 ; column-nr is zero-based
 (defun %sql-get-data (hstmt column-nr c-type data-ptr precision out-len-ptr)
@@ -901,41 +901,41 @@ May be locally bound to something else if a certain type is necessary.")
                                                          +max-precision+ out-len-ptr)))))))
 
     ;; reset the out length for the next row
-    (setf (deref-pointer out-len-ptr #.$ODBC-LONG-TYPE) #.$SQL_NO_TOTAL)
+    (setf (cffi:mem-ref out-len-ptr #.$ODBC-LONG-TYPE) #.$SQL_NO_TOTAL)
     (if (= sql-type $SQL_DECIMAL)
         (let ((*read-base* 10))
           (read-from-string result))
         result)))
 
 
-(def-type c-timestamp-ptr-type (* (:struct sql-c-timestamp)))
-(def-type c-time-ptr-type (* (:struct sql-c-time)))
-(def-type c-date-ptr-type (* (:struct sql-c-date)))
+(deftype c-timestamp-ptr-type () t)
+(deftype c-time-ptr-type () t)
+(deftype c-date-ptr-type () t)
 
 (defun timestamp-to-clsql-time (ptr)
   (declare (type c-timestamp-ptr-type ptr))
   (clsql-sys:make-time
-   :second (get-slot-value ptr 'sql-c-timestamp 'second)
-   :minute (get-slot-value ptr 'sql-c-timestamp 'minute)
-   :hour (get-slot-value ptr 'sql-c-timestamp 'hour)
-   :day (get-slot-value ptr 'sql-c-timestamp 'day)
-   :month (get-slot-value ptr 'sql-c-timestamp 'month)
-   :year (get-slot-value ptr 'sql-c-timestamp 'year)
-   :usec (let ((frac (get-slot-value ptr 'sql-c-timestamp 'fraction)))
+   :second (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'second)
+   :minute (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'minute)
+   :hour (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'hour)
+   :day (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'day)
+   :month (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'month)
+   :year (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'year)
+   :usec (let ((frac (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'fraction)))
 	   (if frac (/ frac 1000) 0))))
 
 (defun universal-time-to-timestamp (time &optional (fraction 0))
   "TODO: Dead function?"
   (multiple-value-bind (sec min hour day month year)
       (decode-universal-time time)
-    (let ((ptr (allocate-foreign-object 'sql-c-timestamp)))
-      (setf (get-slot-value ptr 'sql-c-timestamp 'second) sec
-            (get-slot-value ptr 'sql-c-timestamp 'minute) min
-            (get-slot-value ptr 'sql-c-timestamp 'hour) hour
-            (get-slot-value ptr 'sql-c-timestamp 'day) day
-            (get-slot-value ptr 'sql-c-timestamp 'month) month
-            (get-slot-value ptr 'sql-c-timestamp 'year) year
-            (get-slot-value ptr 'sql-c-timestamp 'fraction) fraction)
+    (let ((ptr (cffi:foreign-alloc '(:struct sql-c-timestamp))))
+      (setf (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'second) sec
+            (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'minute) min
+            (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'hour) hour
+            (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'day) day
+            (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'month) month
+            (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'year) year
+            (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'fraction) fraction)
       ptr)))
 
 (defun %put-timestamp (ptr time &optional (fraction 0))
@@ -943,29 +943,29 @@ May be locally bound to something else if a certain type is necessary.")
   (declare (type c-timestamp-ptr-type ptr))
   (multiple-value-bind (sec min hour day month year)
       (decode-universal-time time)
-    (setf (get-slot-value ptr 'sql-c-timestamp 'second) sec
-          (get-slot-value ptr 'sql-c-timestamp 'minute) min
-          (get-slot-value ptr 'sql-c-timestamp 'hour) hour
-          (get-slot-value ptr 'sql-c-timestamp 'day) day
-          (get-slot-value ptr 'sql-c-timestamp 'month) month
-          (get-slot-value ptr 'sql-c-timestamp 'year) year
-          (get-slot-value ptr 'sql-c-timestamp 'fraction) fraction)
+    (setf (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'second) sec
+          (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'minute) min
+          (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'hour) hour
+          (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'day) day
+          (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'month) month
+          (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'year) year
+          (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'fraction) fraction)
       ptr))
 
 (defun date-to-clsql-time (ptr)
   (declare (type c-date-ptr-type ptr))
   (clsql-sys:make-time
    :second 0 :minute 0 :hour 0
-   :day (get-slot-value ptr 'sql-c-timestamp 'day)
-   :month (get-slot-value ptr 'sql-c-timestamp 'month)
-   :year (get-slot-value ptr 'sql-c-timestamp 'year)))
+   :day (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'day)
+   :month (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'month)
+   :year (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'year)))
 
 (defun time-to-clsql-time (ptr)
   (declare (type c-time-ptr-type ptr))
   (clsql-sys:make-time
-   :second (get-slot-value ptr 'sql-c-timestamp 'second)
-   :minute (get-slot-value ptr 'sql-c-timestamp 'minute)
-   :hour (get-slot-value ptr 'sql-c-timestamp 'hour)))
+   :second (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'second)
+   :minute (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'minute)
+   :hour (cffi:foreign-slot-value ptr '(:struct sql-c-timestamp) 'hour)))
 
 
 ;;; Added by KMR
@@ -976,7 +976,7 @@ May be locally bound to something else if a certain type is necessary.")
       ;;stuffed into a pointer.
       ;;http://msdn.microsoft.com/en-us/library/ms709285%28v=VS.85%29.aspx
       (SQLSetEnvAttr henv $SQL_ATTR_ODBC_VERSION
-                     (make-pointer version :void) 0)))
+                     (cffi:make-pointer version) 0)))
 
 (defun %list-tables (hstmt)
   (with-error-handling (:hstmt hstmt)
@@ -985,39 +985,39 @@ May be locally bound to something else if a certain type is necessary.")
 (defun %table-statistics (table hstmt &key unique (ensure t)
                            &aux (table (princ-to-string
                                         (clsql-sys::unescaped-database-identifier table))))
-  (with-cstrings ((table-cs table))
-   (with-error-handling (:hstmt hstmt)
-       (SQLStatistics
-        hstmt
-        +null-ptr+ 0
-        +null-ptr+ 0
-        table-cs $SQL_NTS
-        (if unique $SQL_INDEX_UNIQUE $SQL_INDEX_ALL)
-        (if ensure $SQL_ENSURE $SQL_QUICK)))))
+  (cffi:with-foreign-strings ((table-cs table))
+    (with-error-handling (:hstmt hstmt)
+      (SQLStatistics
+       hstmt
+       +null-ptr+ 0
+       +null-ptr+ 0
+       table-cs $SQL_NTS
+       (if unique $SQL_INDEX_UNIQUE $SQL_INDEX_ALL)
+       (if ensure $SQL_ENSURE $SQL_QUICK)))))
 
 (defun %list-data-sources (henv)
   (let ((results nil))
-    (with-foreign-strings ((dsn-ptr (1+ $SQL_MAX_DSN_LENGTH))
-                           (desc-ptr 256))
-      (with-foreign-objects ((dsn-len :short)
-                             (desc-len :short))
-       (let ((res (with-error-handling (:henv henv)
-                      (SQLDataSources henv $SQL_FETCH_FIRST dsn-ptr
+    (cffi:with-foreign-strings ((dsn-ptr (1+ $SQL_MAX_DSN_LENGTH))
+                                (desc-ptr 256))
+      (cffi:with-foreign-objects ((dsn-len :short)
+                                  (desc-len :short))
+        (let ((res (with-error-handling (:henv henv)
+                     (SQLDataSources henv $SQL_FETCH_FIRST dsn-ptr
+                                     (1+ $SQL_MAX_DSN_LENGTH)
+                                     dsn-len desc-ptr 256 desc-len))))
+          (when (or (eql res $SQL_SUCCESS)
+                    (eql res $SQL_SUCCESS_WITH_INFO))
+            (push (cffi:foreign-string-to-lisp dsn-ptr) results))
+
+          (do ((res (with-error-handling (:henv henv)
+                      (SQLDataSources henv $SQL_FETCH_NEXT dsn-ptr
+                                      (1+ $SQL_MAX_DSN_LENGTH)
+                                      dsn-len desc-ptr 256 desc-len))
+                    (with-error-handling (:henv henv)
+                      (SQLDataSources henv $SQL_FETCH_NEXT dsn-ptr
                                       (1+ $SQL_MAX_DSN_LENGTH)
                                       dsn-len desc-ptr 256 desc-len))))
-         (when (or (eql res $SQL_SUCCESS)
-                   (eql res $SQL_SUCCESS_WITH_INFO))
-           (push (convert-from-foreign-string dsn-ptr) results))
-
-         (do ((res (with-error-handling (:henv henv)
-                       (SQLDataSources henv $SQL_FETCH_NEXT dsn-ptr
-                                       (1+ $SQL_MAX_DSN_LENGTH)
-                                       dsn-len desc-ptr 256 desc-len))
-                   (with-error-handling (:henv henv)
-                       (SQLDataSources henv $SQL_FETCH_NEXT dsn-ptr
-                                       (1+ $SQL_MAX_DSN_LENGTH)
-                                       dsn-len desc-ptr 256 desc-len))))
-             ((not (or (eql res $SQL_SUCCESS)
-                       (eql res $SQL_SUCCESS_WITH_INFO))))
-           (push (convert-from-foreign-string dsn-ptr) results)))))
+              ((not (or (eql res $SQL_SUCCESS)
+                        (eql res $SQL_SUCCESS_WITH_INFO))))
+           (push (cffi:foreign-string-to-lisp dsn-ptr) results)))))
     (nreverse results)))

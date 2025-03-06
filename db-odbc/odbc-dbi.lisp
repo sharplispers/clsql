@@ -286,9 +286,9 @@ the query against." ))
     (loop for data-ptr across column-data-ptrs
           for out-len-ptr across column-out-len-ptrs
           when data-ptr
-            do (uffi:free-foreign-object data-ptr)
+            do (cffi:foreign-free data-ptr)
           when out-len-ptr
-            do (uffi:free-foreign-object out-len-ptr))
+            do (cffi:foreign-free out-len-ptr))
     (setf (fill-pointer column-data-ptrs) 0
           (fill-pointer column-out-len-ptrs) 0)))
 
@@ -439,7 +439,7 @@ This makes the functions db-execute-command and db-query thread safe."
                   (multiple-value-bind (c-type data-ptr out-len-ptr size long-p)
                                        (%allocate-bindings sql-type precision)
                     (if long-p ;; if long-p we fetch in chunks with %sql-get-data but must ensure that out_len_ptr is non zero
-                        (setf (uffi:deref-pointer out-len-ptr #.odbc::$ODBC-LONG-TYPE) #.odbc::$SQL_NO_TOTAL)
+                        (setf (cffi:mem-ref out-len-ptr #.odbc::$ODBC-LONG-TYPE) #.odbc::$SQL_NO_TOTAL)
                       (%bind-column hstmt col-nr c-type data-ptr (1+ size) out-len-ptr))
                     (vector-push-extend name column-names)
                     (vector-push-extend sql-type column-sql-types)
@@ -489,8 +489,8 @@ This makes the functions db-execute-command and db-query thread safe."
     (cond ((null hstmt) nil)
           (drop-p
            (%free-statement hstmt :drop)
-           ;; dont free with uffi/ this is a double free and crashes everything
-           ;; (uffi:free-foreign-object hstmt)
+           ;; dont free with cffi, this is a double free and crashes everything
+           ;; (cffi:foreign-free hstmt)
            (setf hstmt nil))
           (t
            (%free-statement hstmt :unbind)
@@ -631,7 +631,7 @@ This makes the functions db-execute-command and db-query thread safe."
                     (write-to-string parameter))
                 size (length parameter-string)
                 data-ptr
-                (uffi:allocate-foreign-string (1+ size)))
+                (cffi:foreign-alloc :char :count (1+ size)))
           (vector-push-extend data-ptr parameter-data-ptrs)
           (%sql-bind-parameter
            hstmt (1- (fill-pointer parameter-data-ptrs)) odbc::$SQL_PARAM_INPUT
@@ -661,16 +661,16 @@ This makes the functions db-execute-command and db-query thread safe."
       (%free-statement hstmt :close)
       (dotimes (param-nr (fill-pointer parameter-data-ptrs))
         (let ((data-ptr (aref parameter-data-ptrs param-nr)))
-          (when data-ptr (uffi:free-foreign-object data-ptr))))
+          (when data-ptr (cffi:foreign-free data-ptr))))
       (setf (fill-pointer parameter-data-ptrs) 0))))
 
 (defun data-parameter-ptr (hstmt)
-  (uffi:with-foreign-object (param-ptr :pointer-void)
+  (cffi:with-foreign-object (param-ptr :pointer)
     (let ((return-code (%sql-param-data hstmt param-ptr)))
       ;;(format t "~%return-code from %sql-param-data: ~a~%" return-code)
       (when (= return-code odbc::$SQL_NEED_DATA)
         ;;(ffc::%pointer-to-address (%get-ptr param-ptr))
-        (uffi:deref-pointer param-ptr :pointer-void)))))
+        (cffi:mem-ref param-ptr :pointer)))))
 
 ;; database inquiery functions
 

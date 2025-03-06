@@ -14,10 +14,8 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(in-package #:cl-user)
-
 (defpackage #:odbc
-  (:use #:cl #:uffi)
+  (:use #:cl)
   (:export
      #:database-library-loaded
 

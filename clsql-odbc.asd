@@ -22,7 +22,7 @@
   :description "Common Lisp SQL ODBC Driver"
   :long-description "cl-sql-odbc package provides a database driver to the ODBC database system."
 
-  :depends-on (clsql clsql-uffi)
+  :depends-on (:clsql :clsql-cffi)
   :components
   ((:module :db-odbc
 	    :components

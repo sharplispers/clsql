@@ -3,7 +3,7 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; Name:          odbc-loader.sql
-;;;; Purpose:       ODBC library loader using UFFI
+;;;; Purpose:       ODBC library loader using CFFI
 ;;;; Programmers:   Kevin M. Rosenberg
 ;;;; Date Started:  April 2004
 ;;;;
@@ -31,8 +31,7 @@ set to the right path before compiling or loading the system.")
   *odbc-library-loaded*)
 
 (defmethod clsql-sys:database-type-load-foreign ((database-type (eql :odbc)))
-  (clsql-uffi:find-and-load-foreign-library *odbc-library-filenames*
-                                            :module "odbc")
+  (clsql-cffi:find-and-load-foreign-library *odbc-library-filenames*)
   (setq *odbc-library-loaded* t))
 
 (clsql-sys:database-type-load-foreign :odbc)

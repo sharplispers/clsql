@@ -3,7 +3,7 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; Name:     odbc-constants.lisp
-;;;; Purpose:  Constants for UFFI interface to ODBC
+;;;; Purpose:  Constants for CFFI interface to ODBC
 ;;;; Authors:  Kevin M. Rosenberg and Paul Meurer
 ;;;;
 ;;;; This file, part of CLSQL, is Copyright (c) 2004 by Kevin M. Rosenberg

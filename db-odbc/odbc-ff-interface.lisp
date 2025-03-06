@@ -3,7 +3,7 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; Name:     odbc-ff-interface.lisp
-;;;; Purpose:  Function definitions for UFFI interface to ODBC
+;;;; Purpose:  Function definitions for CFFI interface to ODBC
 ;;;; Author:   Kevin M. Rosenberg
 ;;;;
 ;;;; This file, part of CLSQL, is Copyright (c) 2004 by Kevin M. Rosenberg
@@ -16,332 +16,231 @@
 
 (in-package #:odbc)
 
-(def-foreign-type sql-handle :pointer-void)
-(def-foreign-type sql-handle-ptr (* sql-handle))
-(def-foreign-type string-ptr (* :unsigned-char))
-(def-type long-ptr-type (* #.$ODBC-LONG-TYPE))
+(cffi:defctype sql-handle :pointer)
+(cffi:defctype sql-handle-ptr (:pointer sql-handle))
+(cffi:defctype string-ptr (:pointer :unsigned-char))
+(cffi:defctype long-ptr-type (:pointer #.$ODBC-LONG-TYPE))
+(deftype long-ptr-type () 'cffi:foreign-pointer)
 
 ;; ODBC3
-(def-function "SQLAllocHandle"
-    ((handle-type :short)
-     (input-handle sql-handle)
-     (*phenv sql-handle-ptr))
-  :module "odbc"
-  :returning :short)
+(cffi:defcfun "SQLAllocHandle" :short
+  (handle-type :short)
+  (input-handle sql-handle)
+  (*phenv sql-handle-ptr))
 
 ;; ODBC3 version of SQLFreeStmt, SQLFreeConnect, and SSQLFreeStmt
-(def-function "SQLFreeHandle"
-    ((handle-type :short)        ; HandleType
-     (input-handle sql-handle))  ; Handle
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
-
+(cffi:defcfun "SQLFreeHandle" :short ; RETCODE_SQL_API
+  (handle-type :short)        ; HandleType
+  (input-handle sql-handle))  ; Handle
 
 ;; deprecated
-(def-function "SQLAllocEnv"
-    ((*phenv sql-handle-ptr)    ; HENV   FAR *phenv
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLAllocEnv" :short  ; RETCODE_SQL_API
+  (*phenv sql-handle-ptr))     ; HENV   FAR *phenv
 
 ;; deprecated
-(def-function "SQLAllocConnect"
-    ((henv sql-handle)          ; HENV        henv
-     (*phdbc sql-handle-ptr)    ; HDBC   FAR *phdbc
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLAllocConnect" :short ; RETCODE_SQL_API
+  (henv sql-handle)          ; HENV        henv
+  (*phdbc sql-handle-ptr))    ; HDBC   FAR *phdbc
 
-(def-function "SQLConnect"
-    ((hdbc sql-handle)          ; HDBC        hdbc
-     (*szDSN :cstring)        ; UCHAR  FAR *szDSN
-     (cbDSN :short)             ; SWORD       cbDSN
-     (*szUID :cstring)        ; UCHAR  FAR *szUID
-     (cbUID :short)             ; SWORD       cbUID
-     (*szAuthStr :cstring)    ; UCHAR  FAR *szAuthStr
-     (cbAuthStr :short)         ; SWORD       cbAuthStr
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLConnect" :short ; RETCODE_SQL_API
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (*szDSN :string)        ; UCHAR  FAR *szDSN
+  (cbDSN :short)             ; SWORD       cbDSN
+  (*szUID :string)        ; UCHAR  FAR *szUID
+  (cbUID :short)             ; SWORD       cbUID
+  (*szAuthStr :string)    ; UCHAR  FAR *szAuthStr
+  (cbAuthStr :short))         ; SWORD       cbAuthStr
 
-(def-function "SQLDriverConnect"
-    ((hdbc sql-handle)          ; HDBC        hdbc
-     (hwnd sql-handle)          ; SQLHWND     hwnd
-     (*szConnStrIn :cstring)    ; UCHAR  FAR *szConnStrIn
-     (cbConnStrIn :short)       ; SWORD       cbConnStrIn
-     (*szConnStrOut string-ptr) ; UCHAR  FAR *szConnStrOut
-     (cbConnStrOutMax :short)   ; SWORD       cbConnStrOutMax
-     (*pcbConnStrOut :pointer-void)      ; SWORD  FAR *pcbConnStrOut
-     (fDriverCompletion :short) ; UWORD       fDriverCompletion
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLDriverConnect" :short ; RETCODE_SQL_API
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (hwnd sql-handle)          ; SQLHWND     hwnd
+  (*szConnStrIn :string)    ; UCHAR  FAR *szConnStrIn
+  (cbConnStrIn :short)       ; SWORD       cbConnStrIn
+  (*szConnStrOut string-ptr) ; UCHAR  FAR *szConnStrOut
+  (cbConnStrOutMax :short)   ; SWORD       cbConnStrOutMax
+  (*pcbConnStrOut :pointer)      ; SWORD  FAR *pcbConnStrOut
+  (fDriverCompletion :short)) ; UWORD       fDriverCompletion
 
-(def-function "SQLDisconnect"
-    ((hdbc sql-handle))         ; HDBC        hdbc
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
-
+(cffi:defcfun "SQLDisconnect" :short ; RETCODE_SQL_API
+  (hdbc sql-handle))         ; HDBC        hdbc
 
 ;;deprecated
-(def-function "SQLFreeConnect"
-    ((hdbc sql-handle))         ; HDBC        hdbc
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLFreeConnect" :short ; RETCODE_SQL_API
+  (hdbc sql-handle))        ; HDBC        hdbc
 
 ;; deprecated
-(def-function "SQLAllocStmt"
-    ((hdbc sql-handle)          ; HDBC        hdbc
-     (*phstmt sql-handle-ptr)   ; HSTMT  FAR *phstmt
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLAllocStmt" :short ; RETCODE_SQL_API
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (*phstmt sql-handle-ptr))   ; HSTMT  FAR *phstmt
 
-(def-function "SQLGetInfo"
-    ((hdbc sql-handle)          ; HDBC        hdbc
-     (fInfoType :short)         ; UWORD       fInfoType
-     (rgbInfoValue :pointer-void)        ; PTR         rgbInfoValue
-     (cbInfoValueMax :short)    ; SWORD       cbInfoValueMax
-     (*pcbInfoValue :pointer-void)       ; SWORD  FAR *pcbInfoValue
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLGetInfo" :short ; RETCODE_SQL_API
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (fInfoType :short)         ; UWORD       fInfoType
+  (rgbInfoValue :pointer)        ; PTR         rgbInfoValue
+  (cbInfoValueMax :short)    ; SWORD       cbInfoValueMax
+  (*pcbInfoValue :pointer))       ; SWORD  FAR *pcbInfoValue
 
-(def-function "SQLPrepare"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (*szSqlStr :cstring)     ; UCHAR  FAR *szSqlStr
-     (cbSqlStr :int)           ; SDWORD      cbSqlStr
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLPrepare" :short ; RETCODE_SQL_API
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (*szSqlStr :string)     ; UCHAR  FAR *szSqlStr
+  (cbSqlStr :int))           ; SDWORD      cbSqlStr
 
-(def-function "SQLExecute"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLExecute" :short ; RETCODE_SQL_API
+  (hstmt sql-handle))         ; HSTMT       hstmt
 
-(def-function "SQLExecDirect"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (*szSqlStr :cstring)     ; UCHAR  FAR *szSqlStr
-     (cbSqlStr :int)           ; SDWORD      cbSqlStr
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLExecDirect" :short ; RETCODE_SQL_API
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (*szSqlStr :string)     ; UCHAR  FAR *szSqlStr
+  (cbSqlStr :int))           ; SDWORD      cbSqlStr
 
-(def-function "SQLFreeStmt"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (fOption :short))          ; UWORD       fOption
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLFreeStmt" :short ; RETCODE_SQL_API
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (fOption :short))         ; UWORD       fOption
 
-  (def-function "SQLCancel"
-      ((hstmt sql-handle)         ; HSTMT       hstmt
-       )
-    :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLCancel" :short ; RETCODE_SQL_API
+  (hstmt sql-handle))         ; HSTMT       hstmt
 
-(def-function "SQLError"
-    ((henv sql-handle)          ; HENV        henv
-     (hdbc sql-handle)          ; HDBC        hdbc
-     (hstmt sql-handle)         ; HSTMT       hstmt
-     (*szSqlState string-ptr)   ; UCHAR  FAR *szSqlState
-     (*pfNativeError (* :int))      ; SDWORD FAR *pfNativeError
-     (*szErrorMsg string-ptr)   ; UCHAR  FAR *szErrorMsg
-     (cbErrorMsgMax :short)     ; SWORD       cbErrorMsgMax
-     (*pcbErrorMsg (* :short))        ; SWORD  FAR *pcbErrorMsg
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLError" :short ; RETCODE_SQL_API
+  (henv sql-handle)          ; HENV        henv
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (*szSqlState string-ptr)   ; UCHAR  FAR *szSqlState
+  (*pfNativeError (:pointer :int))      ; SDWORD FAR *pfNativeError
+  (*szErrorMsg string-ptr)   ; UCHAR  FAR *szErrorMsg
+  (cbErrorMsgMax :short)     ; SWORD       cbErrorMsgMax
+  (*pcbErrorMsg (:pointer :short)))        ; SWORD  FAR *pcbErrorMsg
 
-(def-function "SQLNumResultCols"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (*pccol (* :short))              ; SWORD  FAR *pccol
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLNumResultCols" :short ; RETCODE_SQL_API
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (*pccol (:pointer :short)))              ; SWORD  FAR *pccol
 
-(def-function "SQLRowCount"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (*pcrow (* :int))              ; SDWORD FAR *pcrow
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLRowCount" :short ; RETCODE_SQL_API
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (*pcrow (:pointer :int)))             ; SDWORD FAR *pcrow
 
-(def-function "SQLDescribeCol"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (*szColName string-ptr)    ; UCHAR  FAR *szColName
-     (cbColNameMax :short)      ; SWORD       cbColNameMax
-     (*pcbColName (* :short))         ; SWORD  FAR *pcbColName
-     (*pfSqlType (* :short))          ; SWORD  FAR *pfSqlType
-     (*pcbColDef (* #.$ODBC-ULONG-TYPE))          ; UDWORD FAR *pcbColDef
-     (*pibScale (* :short))           ; SWORD  FAR *pibScale
-     (*pfNullable (* :short))         ; SWORD  FAR *pfNullable
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLDescribeCol" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (icol :short)              ; UWORD       icol
+  (*szColName string-ptr)    ; UCHAR  FAR *szColName
+  (cbColNameMax :short)      ; SWORD       cbColNameMax
+  (*pcbColName (:pointer :short))         ; SWORD  FAR *pcbColName
+  (*pfSqlType (:pointer :short))          ; SWORD  FAR *pfSqlType
+  (*pcbColDef (:pointer #.$ODBC-ULONG-TYPE))          ; UDWORD FAR *pcbColDef
+  (*pibScale (:pointer :short))           ; SWORD  FAR *pibScale
+  (*pfNullable (:pointer :short)))         ; SWORD  FAR *pfNullable
 
-(def-function "SQLColAttributes"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (fDescType :short)         ; UWORD       fDescType
-     (rgbDesc string-ptr)             ; PTR         rgbDesc
-     (cbDescMax :short)         ; SWORD       cbDescMax
-     (*pcbDesc (* :short))            ; SWORD  FAR *pcbDesc
-     (*pfDesc (* :int))             ; SDWORD FAR *pfDesc
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLColAttributes" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (icol :short)              ; UWORD       icol
+  (fDescType :short)         ; UWORD       fDescType
+  (rgbDesc string-ptr)             ; PTR         rgbDesc
+  (cbDescMax :short)         ; SWORD       cbDescMax
+  (*pcbDesc (:pointer :short))            ; SWORD  FAR *pcbDesc
+  (*pfDesc (:pointer :int)))           ; SDWORD FAR *pfDesc
 
-(def-function "SQLColumns"
-    ((hstmt sql-handle)             ; HSTMT       hstmt
-     (*szTableQualifier :cstring) ; UCHAR  FAR *szTableQualifier
-     (cbTableQualifier :short)      ; SWORD       cbTableQualifier
-     (*szTableOwner :cstring)     ; UCHAR  FAR *szTableOwner
-     (cbTableOwner :short)          ; SWORD       cbTableOwner
-     (*szTableName :cstring)      ; UCHAR  FAR *szTableName
-     (cbTableName :short)           ; SWORD       cbTableName
-     (*szColumnName :cstring)     ; UCHAR  FAR *szColumnName
-     (cbColumnName :short)          ; SWORD       cbColumnName
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLColumns" :short
+  (hstmt sql-handle)             ; HSTMT       hstmt
+  (*szTableQualifier :string) ; UCHAR  FAR *szTableQualifier
+  (cbTableQualifier :short)      ; SWORD       cbTableQualifier
+  (*szTableOwner :string)     ; UCHAR  FAR *szTableOwner
+  (cbTableOwner :short)          ; SWORD       cbTableOwner
+  (*szTableName :string)      ; UCHAR  FAR *szTableName
+  (cbTableName :short)           ; SWORD       cbTableName
+  (*szColumnName :string)     ; UCHAR  FAR *szColumnName
+  (cbColumnName :short))          ; SWORD       cbColumnName
 
-(def-function "SQLBindCol"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (fCType :short)            ; SWORD       fCType
-     (rgbValue :pointer-void)            ; PTR         rgbValue
-     (cbValueMax :int)         ; SDWORD      cbValueMax
-     (*pcbValue (* :int))           ; SDWORD FAR *pcbValue
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLBindCol" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (icol :short)              ; UWORD       icol
+  (fCType :short)            ; SWORD       fCType
+  (rgbValue :pointer)            ; PTR         rgbValue
+  (cbValueMax :int)         ; SDWORD      cbValueMax
+  (*pcbValue (:pointer :int)))           ; SDWORD FAR *pcbValue
 
-(def-function "SQLFetch"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLFetch" :short
+  (hstmt sql-handle))         ; HSTMT       hstmt
 
-(def-function "SQLTransact"
-    ((henv sql-handle)          ; HENV        henv
-     (hdbc sql-handle)          ; HDBC        hdbc
-     (fType :short)             ; UWORD       fType ($SQL_COMMIT or $SQL_ROLLBACK)
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLTransact" :short
+  (henv sql-handle)          ; HENV        henv
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (fType :short))             ; UWORD       fType ($SQL_COMMIT or $SQL_ROLLBACK)
 
 ;; ODBC 2.0
-(def-function "SQLDescribeParam"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (ipar :short)              ; UWORD       ipar
-     (*pfSqlType (* :short))          ; SWORD  FAR *pfSqlType
-     (*pcbColDef (* :unsigned-int))          ; UDWORD FAR *pcbColDef
-     (*pibScale (* :short))           ; SWORD  FAR *pibScale
-     (*pfNullable (* :short))         ; SWORD  FAR *pfNullable
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLDescribeParam" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (ipar :short)              ; UWORD       ipar
+  (*pfSqlType (:pointer :short))          ; SWORD  FAR *pfSqlType
+  (*pcbColDef (:pointer :unsigned-int))          ; UDWORD FAR *pcbColDef
+  (*pibScale (:pointer :short))           ; SWORD  FAR *pibScale
+  (*pfNullable (:pointer :short)))        ; SWORD  FAR *pfNullable
 
 ;; ODBC 2.0
-(def-function "SQLBindParameter"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (ipar :short)              ; UWORD       ipar
-     (fParamType :short)        ; SWORD       fParamType
-     (fCType :short)            ; SWORD       fCType
-     (fSqlType :short)          ; SWORD       fSqlType
-     (cbColDef :int)           ; UDWORD      cbColDef
-     (ibScale :short)           ; SWORD       ibScale
-     (rgbValue :pointer-void)            ; PTR         rgbValue
-     (cbValueMax :int)         ; SDWORD      cbValueMax
-     (*pcbValue :pointer-void)           ; SDWORD FAR *pcbValue
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLBindParameter" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (ipar :short)              ; UWORD       ipar
+  (fParamType :short)        ; SWORD       fParamType
+  (fCType :short)            ; SWORD       fCType
+  (fSqlType :short)          ; SWORD       fSqlType
+  (cbColDef :int)           ; UDWORD      cbColDef
+  (ibScale :short)           ; SWORD       ibScale
+  (rgbValue :pointer)            ; PTR         rgbValue
+  (cbValueMax :int)         ; SDWORD      cbValueMax
+  (*pcbValue :pointer))           ; SDWORD FAR *pcbValue
 
 ;; level 1
-(def-function "SQLGetData"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (fCType :short)            ; SWORD       fCType
-     (rgbValue :pointer-void)            ; PTR         rgbValue
-     (cbValueMax :int)         ; SDWORD      cbValueMax
-     (*pcbValue :pointer-void)           ; SDWORD FAR *pcbValue
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLGetData" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (icol :short)              ; UWORD       icol
+  (fCType :short)            ; SWORD       fCType
+  (rgbValue :pointer)            ; PTR         rgbValue
+  (cbValueMax :int)         ; SDWORD      cbValueMax
+  (*pcbValue :pointer))           ; SDWORD FAR *pcbValue
 
-(def-function "SQLParamData"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (*prgbValue :pointer-void)          ; PTR    FAR *prgbValue
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLParamData" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (*prgbValue :pointer))          ; PTR    FAR *prgbValue
 
-(def-function "SQLPutData"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (rgbValue :pointer-void)            ; PTR         rgbValue
-     (cbValue :int)            ; SDWORD      cbValue
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLPutData" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (rgbValue :pointer)            ; PTR         rgbValue
+  (cbValue :int))            ; SDWORD      cbValue
 
-(def-function "SQLGetConnectOption"
-    ((hdbc sql-handle)          ; HDBC        hdbc
-     (fOption :short)           ; UWORD       fOption
-     (pvParam :pointer-void)             ; PTR         pvParam
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLGetConnectOption" :short
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (fOption :short)           ; UWORD       fOption
+  (pvParam :pointer))             ; PTR         pvParam
 
-(def-function "SQLSetConnectOption"
-    ((hdbc sql-handle)          ; HDBC        hdbc
-     (fOption :short)           ; UWORD       fOption
-     (vParam :int)             ; UDWORD      vParam
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLSetConnectOption" :short
+  (hdbc sql-handle)          ; HDBC        hdbc
+  (fOption :short)           ; UWORD       fOption
+  (vParam :int))             ; UDWORD      vParam
 
-(def-function "SQLSetPos"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (irow :short)              ; UWORD       irow
-     (fOption :short)           ; UWORD       fOption
-     (fLock :short)             ; UWORD       fLock
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLSetPos" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (irow :short)              ; UWORD       irow
+  (fOption :short)           ; UWORD       fOption
+  (fLock :short))             ; UWORD       fLock
 
                                         ; level 2
-(def-function "SQLExtendedFetch"
-    ((hstmt sql-handle)         ; HSTMT       hstmt
-     (fFetchType :short)        ; UWORD       fFetchType
-     (irow :int)               ; SDWORD      irow
-     (*pcrow :pointer-void)              ; UDWORD FAR *pcrow
-     (*rgfRowStatus :pointer-void)       ; UWORD  FAR *rgfRowStatus
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLExtendedFetch" :short
+  (hstmt sql-handle)         ; HSTMT       hstmt
+  (fFetchType :short)        ; UWORD       fFetchType
+  (irow :int)               ; SDWORD      irow
+  (*pcrow :pointer)              ; UDWORD FAR *pcrow
+  (*rgfRowStatus :pointer))       ; UWORD  FAR *rgfRowStatus
 
-(def-function "SQLDataSources"
-    ((henv sql-handle)          ; HENV        henv
-     (fDirection :short)
-     (*szDSN string-ptr)        ; UCHAR  FAR *szDSN
-     (cbDSNMax :short)          ; SWORD       cbDSNMax
-     (*pcbDSN (* :short))             ; SWORD      *pcbDSN
-     (*szDescription string-ptr) ; UCHAR     *szDescription
-     (cbDescriptionMax :short)  ; SWORD       cbDescriptionMax
-     (*pcbDescription (* :short))     ; SWORD      *pcbDescription
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLDataSources" :short
+  (henv sql-handle)          ; HENV        henv
+  (fDirection :short)
+  (*szDSN string-ptr)        ; UCHAR  FAR *szDSN
+  (cbDSNMax :short)          ; SWORD       cbDSNMax
+  (*pcbDSN (:pointer :short))             ; SWORD      *pcbDSN
+  (*szDescription string-ptr) ; UCHAR     *szDescription
+  (cbDescriptionMax :short)  ; SWORD       cbDescriptionMax
+  (*pcbDescription (:pointer :short)))     ; SWORD      *pcbDescription
 
-(def-function "SQLFreeEnv"
-    ((henv sql-handle)          ; HSTMT       hstmt
-     )
-  :module "odbc"
-  :returning :short)              ; RETCODE_SQL_API
+(cffi:defcfun "SQLFreeEnv" :short
+  (henv sql-handle))          ; HSTMT       hstmt
 
 
 ;;; foreign type definitions
@@ -350,69 +249,59 @@
 ;;  `(- $SQL_LEN_DATA_AT_EXEC_OFFSET ,length))
 
 
-(def-struct sql-c-time
-    (hour   :short)
+(cffi:defcstruct sql-c-time
+  (hour :short)
   (minute :short)
   (second :short))
 
-(def-struct sql-c-date
-    (year  :short)
+(cffi:defcstruct sql-c-date
+  (year :short)
   (month :short)
-  (day   :short))
+  (day :short))
 
-(def-struct sql-c-timestamp
-    (year     :short)
-  (month    :short)
-  (day      :short)
-  (hour     :short)
-  (minute   :short)
-  (second   :short)
+(cffi:defcstruct sql-c-timestamp
+  (year :short)
+  (month :short)
+  (day :short)
+  (hour :short)
+  (minute :short)
+  (second :short)
   (fraction :int))
 
 ;;; Added by KMR
 
-(def-function "SQLSetEnvAttr"
-    ((henv sql-handle)          ; HENV        henv
-     (attr :int)
-     (*value :pointer-void)
-     (szLength :int))
-  :module "odbc"
-  :returning :short)
+(cffi:defcfun "SQLSetEnvAttr" :short
+  (henv sql-handle)          ; HENV        henv
+  (attr :int)
+  (*value :pointer)
+  (szLength :int))
 
-(def-function "SQLGetEnvAttr"
-    ((henv sql-handle)          ; HENV        henv
-     (attr :int)
-     (*value :pointer-void)
-     (szLength :int)
-     (string-length-ptr (* :int)))
-  :module "odbc"
-  :returning :short)
+(cffi:defcfun "SQLGetEnvAttr" :short
+  (henv sql-handle)          ; HENV        henv
+  (attr :int)
+  (*value :pointer)
+  (szLength :int)
+  (string-length-ptr (:pointer :int)))
 
-(def-function "SQLTables"
-    ((hstmt :pointer-void)
-     (catalog-name :pointer-void)
-     (catalog-name-length :short)
-     (schema-name :pointer-void)
-     (schema-name-length :short)
-     (table-name :pointer-void)
-     (table-name-length :short)
-     (table-type-name :pointer-void)
-     (table-type-name-length :short))
-  :module "odbc"
-  :returning :short)
+(cffi:defcfun "SQLTables" :short
+  (hstmt :pointer)
+  (catalog-name :pointer)
+  (catalog-name-length :short)
+  (schema-name :pointer)
+  (schema-name-length :short)
+  (table-name :pointer)
+  (table-name-length :short)
+  (table-type-name :pointer)
+  (table-type-name-length :short))
 
 
-(def-function "SQLStatistics"
-    ((hstmt :pointer-void)
-     (catalog-name :pointer-void)
-     (catalog-name-length :short)
-     (schema-name :pointer-void)
-     (schema-name-length :short)
-     (table-name :cstring)
-     (table-name-length :short)
-     (unique :short)
-     (reserved :short))
-  :module "odbc"
-  :returning :short)
-
-
+(cffi:defcfun "SQLStatistics" :short
+  (hstmt :pointer)
+  (catalog-name :pointer)
+  (catalog-name-length :short)
+  (schema-name :pointer)
+  (schema-name-length :short)
+  (table-name :string)
+  (table-name-length :short)
+  (unique :short)
+  (reserved :short))
