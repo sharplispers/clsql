@@ -15,18 +15,6 @@
 #+(and clisp (not :clsql-cffi))
 (asdf:operate 'asdf:load-op 'clsql-cffi)
 
-;; need to load uffi for below perform :after method
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  #+:clsql-cffi
-  (unless (find-package 'cffi-uffi-compat)
-    #+quicklisp
-    (ql:quickload :cffi-uffi-compat)
-    #-quicklisp
-    (asdf:operate 'asdf:load-op 'cffi-uffi-compat))
-  #-:clsql-cffi
-  (unless (find-package 'uffi)
-    (asdf:operate 'asdf:load-op 'uffi)))
-
 (defsystem clsql
   :name "CLSQL"
   :author "Kevin Rosenberg <kevin@rosenberg.net>"
