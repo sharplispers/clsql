@@ -55,6 +55,7 @@
      ;; check for an inexact match if we had symbols in the mix
      (string-equal (cast i1) (cast i2)))))
 
+(declaim (inline delistify-dsd))
 (defun delistify-dsd (list)
   "Some MOPs, like openmcl 0.14.2, cons attribute values in a list."
   (if (and (listp list) (null (cdr list)))
