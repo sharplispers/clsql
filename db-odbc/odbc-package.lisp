@@ -17,6 +17,7 @@
 (defpackage #:odbc
   (:use #:cl)
   (:export
+     #:libodbc
      #:database-library-loaded
 
      #:*null*

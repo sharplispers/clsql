@@ -19,7 +19,6 @@
 (defpackage #:clsql-cffi
   (:use #:cl)
   (:export
-   #:find-and-load-foreign-library
    #:canonicalize-type-list
    #:convert-raw-field
    #:atoi

@@ -28,5 +28,4 @@
   ((:module :clsql-cffi
 	    :components
 	    ((:file "clsql-cffi-package")
-             (:file "clsql-cffi-loader" :depends-on ("clsql-cffi-package"))
 	     (:file "clsql-cffi" :depends-on ("clsql-cffi-package"))))))
