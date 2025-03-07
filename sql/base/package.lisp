@@ -246,6 +246,7 @@
          ;; foreign library loading
          #:*foreign-library-search-paths*
          #:push-library-path
+         #:enable-grovel
 
          ;; Condition system (conditions.lisp)
          #:sql-user-error

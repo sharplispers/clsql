@@ -23,14 +23,17 @@
   :long-description "cl-sql-odbc package provides a database driver to the ODBC database system."
 
   :depends-on (:clsql :clsql-cffi)
+  :defsystem-depends-on ((:feature :clsql-grovel :cffi-grovel))
   :components
-  ((:module :db-odbc
-	    :components
-	    ((:file "odbc-package")
-	     (:file "odbc-loader" :depends-on ("odbc-package"))
-	     (:file "odbc-constants" :depends-on ("odbc-loader"))
-	     (:file "odbc-ff-interface" :depends-on ("odbc-constants"))
-	     (:file "odbc-api" :depends-on ("odbc-ff-interface" "odbc-constants"))
-	     (:file "odbc-dbi" :depends-on ("odbc-api"))
-	     (:file "odbc-sql" :depends-on ("odbc-dbi"))))))
+  ((:module "db-odbc"
+    :components
+    ((:file "odbc-package")
+     (:file "odbc-loader" :depends-on ("odbc-package"))
+     #+clsql-grovel
+     (:cffi-grovel-file "sql-constants" :depends-on ("odbc-loader" "odbc-package"))
+     (:file "odbc-constants" :depends-on ("odbc-loader" (:feature :clsql-grovel "sql-constants")))
+     (:file "odbc-ff-interface" :depends-on ("odbc-constants"))
+     (:file "odbc-api" :depends-on ("odbc-ff-interface" "odbc-constants"))
+     (:file "odbc-dbi" :depends-on ("odbc-api"))
+     (:file "odbc-sql" :depends-on ("odbc-dbi"))))))
 
