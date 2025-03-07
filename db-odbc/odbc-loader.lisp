@@ -16,8 +16,10 @@
 
 (in-package #:odbc)
 
-(defparameter *odbc-library-filenames*
-  '("odbc32" "libodbc" "libiodbc"))
+(cffi:define-foreign-library libodbc
+  (:darwin (:or "libodbc.2.dylib" "libodbc.dylib" "libiodbc.2.dylib" "libiodbc.dylib"))
+  (:unix (:or "libodbc.so.2" "libodbc.so" "libiodbc.so.2" "libiodbc.so"))
+  (:windows (:or "odbc32.dll" "odbc32.lib" "odbc32.so")))
 
 (defvar *odbc-supporting-libraries* '("c")
   "Used only by CMU. List of library flags needed to be passed to ld to
@@ -31,7 +33,10 @@ set to the right path before compiling or loading the system.")
   *odbc-library-loaded*)
 
 (defmethod clsql-sys:database-type-load-foreign ((database-type (eql :odbc)))
-  (clsql-cffi:find-and-load-foreign-library *odbc-library-filenames*)
+  (mapc (lambda (path)
+          (pushnew path cffi:*foreign-library-directories* :test #'equal))
+        clsql:*foreign-library-search-paths*)
+  (cffi:load-foreign-library 'libodbc)
   (setq *odbc-library-loaded* t))
 
 (clsql-sys:database-type-load-foreign :odbc)
