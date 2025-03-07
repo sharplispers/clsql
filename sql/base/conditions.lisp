@@ -149,8 +149,7 @@ connection is no longer usable."))
    (value :accessor value :initarg :value :initform nil)
    (database :accessor database :initarg :database :initform nil)))
 
-(defvar *default-database* nil
-  "Specifies the default database to be used.")
+(defvar *default-database*)
 
 (defun error-converting-value (val type &optional (database *default-database*))
   (restart-case 

@@ -30,6 +30,9 @@ and :old.")
   "Returns the list of active database objects."
   *connected-databases*)
 
+(defvar *default-database* nil
+  "Specifies the default database to be used.")
+
 (defun is-database-open (database)
   (eql (database-state database) :open))
 
