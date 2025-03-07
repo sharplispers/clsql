@@ -498,3 +498,27 @@ for foreign libraries \(in addition to the default places).")
   "Adds the pathspec PATH \(which should denote a directory) to
 the list *FOREIGN-LIBRARY-SEARCH-PATHS*."
   (pushnew path *foreign-library-search-paths* :test #'equal))
+
+(defun enable-grovel (&key include-paths)
+  "Enable CFFI grovel for parsing header constants, instead of relying on values
+manually copied to lisp files. INCLUDE-PATHS is a list of paths to add to
+C_INCLUDE_PATH. By default adds ../include for each path in
+*FOREIGN-LIBRARY-SEARCH-PATH*
+
+Note: May not be implemented for all RDBMS"
+  (declare (type list include-paths))
+  (push :clsql-grovel *features*)
+  (setf (uiop:getenv "C_INCLUDE_PATH")
+        (format nil "~{~a~^:~}"
+                (remove-duplicates
+                 (concatenate 'list
+                              include-paths
+                              (mapcar
+                               (lambda (path)
+                                 (namestring (merge-pathnames "include"
+                                                              (uiop:pathname-parent-directory-pathname
+                                                               (uiop:ensure-directory-pathname path)))))
+                               *foreign-library-search-paths*)
+                              (when (uiop:getenvp "C_INCLUDE_PATH")
+                                (uiop:getenv-pathnames "C_INCLUDE_PATH")))
+                 :test #'equal))))
