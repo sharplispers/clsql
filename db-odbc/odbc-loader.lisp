@@ -25,9 +25,10 @@
   (cffi:foreign-library-loaded-p 'libodbc))
 
 (defmethod clsql-sys:database-type-load-foreign ((database-type (eql :odbc)))
-  (mapc (lambda (path)
-          (pushnew path cffi:*foreign-library-directories* :test #'equal))
-        clsql:*foreign-library-search-paths*)
+  (setf cffi:*foreign-library-directories*
+        (remove-duplicates (append clsql:*foreign-library-search-paths*
+                                   cffi:*foreign-library-directories*)
+                           :test #'equal))
   (cffi:load-foreign-library 'libodbc))
 
 (clsql-sys:database-type-load-foreign :odbc)
