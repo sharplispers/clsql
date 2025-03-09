@@ -50,3 +50,25 @@ development has stopped on these incorporated projects.
   PostgreSQL programming interface
 - [TeMPOraL/cl-sqlite](https://github.com/TeMPOraL/cl-sqlite) - Common Lisp
   binding for SQLite
+
+## Developer test quickstart
+
+### ODBC
+
+#### SQL Server
+
+You can test ODBC with SQL Server locally using podman. For example, on a Debian-based system:
+
+1. Install required packages
+   ```bash
+   sudo apt install podman libodbc2 unixodbc-dev tdsodbc
+   ```
+2. Start SQL Server container
+   ```bash
+   podman run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=yourStrong(!)Password" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+   ```
+3. Connect to server in Lisp using clsql-odbc
+   ```lisp
+   (asdf:load-system :clsql-odbc)
+   (clsql:connect (list nil nil nil :connection-string "Server=localhost,1433;Driver=/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so;UID=sa;PWD=yourStrong(!)Password"))
+   ```
