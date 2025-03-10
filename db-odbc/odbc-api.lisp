@@ -585,47 +585,37 @@ May be locally bound to something else if a certain type is necessary.")
     (#.$SQL_TINYINT $SQL_C_STINYINT)
     (#.$SQL_BIT $SQL_C_BIT)))
 
-(deftype byte-pointer-type () t)
-(deftype short-pointer-type () t)
-(deftype int-pointer-type () t)
-(deftype long-pointer-type () t)
-(deftype big-pointer-type () t)
-(deftype float-pointer-type () t)
-(deftype double-pointer-type () t)
-(deftype double-pointer-type () t)
-(deftype string-pointer-type () t)
-
 (defun get-cast-byte (ptr)
-  (locally (declare (type byte-pointer-type ptr))
-    (cffi:mem-ref ptr :char)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:mem-ref ptr :char))
 
 (defun get-cast-short (ptr)
-  (locally (declare (type short-pointer-type ptr))
-    (cffi:mem-ref ptr :short)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:mem-ref ptr :short))
 
 (defun get-cast-int (ptr)
-  (locally (declare (type int-pointer-type ptr))
-    (cffi:mem-ref ptr :int)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:mem-ref ptr :int))
 
 (defun get-cast-long (ptr)
-  (locally (declare (type long-pointer-type ptr))
-    (cffi:mem-ref ptr #.$ODBC-LONG-TYPE)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:mem-ref ptr #.$ODBC-LONG-TYPE))
 
 (defun get-cast-big (ptr)
-  (locally (declare (type big-pointer-type ptr))
-    (cffi:mem-ref ptr #.$ODBC-BIG-TYPE)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:mem-ref ptr #.$ODBC-BIG-TYPE))
 
 (defun get-cast-single-float (ptr)
-  (locally (declare (type float-pointer-type ptr))
-    (cffi:mem-ref ptr :float)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:mem-ref ptr :float))
 
 (defun get-cast-double-float (ptr)
-  (locally (declare (type double-pointer-type ptr))
-    (cffi:mem-ref ptr :double)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:mem-ref ptr :double))
 
 (defun get-cast-foreign-string (ptr)
-  (locally (declare (type string-pointer-type ptr))
-    (cffi:foreign-string-to-lisp ptr)))
+  (declare (type cffi:foreign-pointer ptr))
+  (cffi:foreign-string-to-lisp ptr))
 
 (defun get-cast-binary (ptr len format)
   "FORMAT is one of :unsigned-byte-vector, :bit-vector (:string, :hex-string)"
@@ -648,7 +638,7 @@ May be locally bound to something else if a certain type is necessary.")
 
 
 (defun read-data (data-ptr c-type sql-type out-len-ptr result-type)
-  (declare (type long-ptr-type out-len-ptr))
+  (declare (type cffi:foreign-pointer out-len-ptr))
   (let* ((out-len (get-cast-long out-len-ptr))
          (value
           (cond ((= out-len $SQL_NULL_DATA) *null*)
@@ -866,7 +856,7 @@ May be locally bound to something else if a certain type is necessary.")
 
 (defun read-data-in-chunks (hstmt column-nr data-ptr c-type sql-type
                             out-len-ptr result-type)
-  (declare (type long-ptr-type out-len-ptr)
+  (declare (type cffi:foreign-pointer out-len-ptr)
            (ignore result-type))
 
   (let* ((res (%sql-get-data hstmt column-nr c-type data-ptr

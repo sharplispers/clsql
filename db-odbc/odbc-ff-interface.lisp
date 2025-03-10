@@ -19,8 +19,6 @@
 (cffi:defctype sql-handle :pointer)
 (cffi:defctype sql-handle-ptr (:pointer sql-handle))
 (cffi:defctype string-ptr (:pointer :unsigned-char))
-(cffi:defctype long-ptr-type (:pointer #.$ODBC-LONG-TYPE))
-(deftype long-ptr-type () 'cffi:foreign-pointer)
 
 ;; ODBC3
 (cffi:defcfun "SQLAllocHandle" :short
