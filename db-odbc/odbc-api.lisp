@@ -22,6 +22,7 @@ May be locally bound to something else if a certain type is necessary.")
 
 
 (defvar *binary-format* :unsigned-byte-vector)
+(declaim (function *time-format*))
 (defvar *time-format*
   (lambda (time)
     (clsql-sys:format-time nil time :format :iso))
@@ -585,34 +586,42 @@ May be locally bound to something else if a certain type is necessary.")
     (#.$SQL_TINYINT $SQL_C_STINYINT)
     (#.$SQL_BIT $SQL_C_BIT)))
 
+(declaim (inline get-cast-byte))
 (defun get-cast-byte (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:mem-ref ptr :char))
 
+(declaim (inline get-cast-short))
 (defun get-cast-short (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:mem-ref ptr :short))
 
+(declaim (inline get-cast-int))
 (defun get-cast-int (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:mem-ref ptr :int))
 
+(declaim (inline get-cast-long))
 (defun get-cast-long (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:mem-ref ptr #.$ODBC-LONG-TYPE))
 
+(declaim (inline get-cast-big))
 (defun get-cast-big (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:mem-ref ptr #.$ODBC-BIG-TYPE))
 
+(declaim (inline get-cast-single-float))
 (defun get-cast-single-float (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:mem-ref ptr :float))
 
+(declaim (inline get-cast-double-float))
 (defun get-cast-double-float (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:mem-ref ptr :double))
 
+(declaim (inline get-cast-foreign-string))
 (defun get-cast-foreign-string (ptr)
   (declare (type cffi:foreign-pointer ptr))
   (cffi:foreign-string-to-lisp ptr))
@@ -638,7 +647,8 @@ May be locally bound to something else if a certain type is necessary.")
 
 
 (defun read-data (data-ptr c-type sql-type out-len-ptr result-type)
-  (declare (type cffi:foreign-pointer out-len-ptr))
+  (declare (optimize (speed 3) (safety 1))
+           (type cffi:foreign-pointer out-len-ptr))
   (let* ((out-len (get-cast-long out-len-ptr))
          (value
           (cond ((= out-len $SQL_NULL_DATA) *null*)
