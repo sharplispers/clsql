@@ -22,7 +22,7 @@
   :description "Common CFFI Helper functions for Common Lisp SQL Interface Library"
   :long-description "clsql-cffi package provides common helper functions using the CFFI for the CLSQL package."
 
-  :depends-on (:clsql :cffi :cffi-uffi-compat)
+  :depends-on (:clsql :cffi)
 
   :components
   ((:module :clsql-cffi

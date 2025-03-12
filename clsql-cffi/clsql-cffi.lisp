@@ -133,7 +133,8 @@
 
 (defun convert-raw-field (char-ptr type &key length encoding)
   (declare (optimize (speed 3) (safety 0) (space 0))
-           (type cffi:foreign-pointer char-ptr))
+           (type cffi:foreign-pointer char-ptr)
+           (type (or null (integer 0 #.array-dimension-limit)) length))
   (unless (cffi:null-pointer-p char-ptr)
     (case type
       (:double (atof char-ptr))
@@ -145,7 +146,9 @@
       (:uint64 (strtoull char-ptr))
       (:blob
        (if length
-           (uffi:convert-from-foreign-usb8 char-ptr length)
+           (let ((a (make-array length :element-type '(unsigned-byte 8))))
+             (dotimes (i length a)
+               (setf (aref a i) (cffi:mem-ref char-ptr :unsigned-char i))))
            (error "Can't return blob since length is not specified.")))
       (t
        ;; NB: this used to manually expand the arg list based on if length and encoding
