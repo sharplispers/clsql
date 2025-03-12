@@ -89,37 +89,6 @@
 (defconstant SQLITE-ROW         100  "sqlite3_step() has another row ready")
 (defconstant SQLITE-DONE        101  "sqlite3_step() has finished executing")
 
-(defparameter error-codes
-  (list
-   (cons SQLITE-OK "not an error")
-   (cons SQLITE-ERROR "SQL logic error or missing database")
-   (cons SQLITE-INTERNAL "internal SQLite implementation flaw")
-   (cons SQLITE-PERM "access permission denied")
-   (cons SQLITE-ABORT "callback requested query abort")
-   (cons SQLITE-BUSY "database is locked")
-   (cons SQLITE-LOCKED "database table is locked")
-   (cons SQLITE-NOMEM "out of memory")
-   (cons SQLITE-READONLY "attempt to write a readonly database")
-   (cons SQLITE-INTERRUPT "interrupted")
-   (cons SQLITE-IOERR "disk I/O error")
-   (cons SQLITE-CORRUPT "database disk image is malformed")
-   (cons SQLITE-NOTFOUND "table or record not found")
-   (cons SQLITE-FULL "database is full")
-   (cons SQLITE-CANTOPEN "unable to open database file")
-   (cons SQLITE-PROTOCOL "database locking protocol failure")
-   (cons SQLITE-EMPTY "table contains no data")
-   (cons SQLITE-SCHEMA "database schema has changed")
-   (cons SQLITE-TOOBIG "too much data for one table row")
-   (cons SQLITE-CONSTRAINT "constraint failed")
-   (cons SQLITE-MISMATCH "datatype mismatch")
-   (cons SQLITE-MISUSE "library routine called out of sequence")
-   (cons SQLITE-NOLFS "kernel lacks large file support")
-   (cons SQLITE-AUTH "authorization denied")
-   (cons SQLITE-FORMAT "auxiliary database format error")
-   (cons SQLITE-RANGE "bind index out of range")
-   (cons SQLITE-NOTADB "file is encrypted or is not a database"))
-  "Association list of error messages.")
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Column types.
@@ -181,10 +150,7 @@
   (let ((condition
          (make-condition 'sqlite3-error
                          :code code
-                         :message (let ((s (cdr (assoc code error-codes))))
-                                    (if s
-                                        s
-                                        "unknown error")))))
+                         :message (sqlite3-errstr code))))
     (unless (signal condition)
       (invoke-debugger condition))))
 
@@ -193,8 +159,15 @@
 ;;;; Library functions.
 ;;;;
 
+(cffi:defcfun "sqlite3_extended_result_codes" :int
+  (db sqlite3-db)
+  (onoff :bool))
+
 (cffi:defcfun "sqlite3_errcode" :int
   (db sqlite3-db))
+
+(cffi:defcfun "sqlite3_errstr" :string
+  (code :int))
 
 (cffi:defcfun "sqlite3_errmsg" :string
   (db sqlite3-db))
@@ -203,10 +176,10 @@
   (dbname :string)
   (db (:pointer sqlite3-db)))
 
-(cffi:defcfun ("sqlite3_close" %close) :int
+(cffi:defcfun ("sqlite3_close_v2" %close) :int
   (db sqlite3-db))
 
-(cffi:defcfun ("sqlite3_prepare" %prepare) :int
+(cffi:defcfun ("sqlite3_prepare_v2" %prepare) :int
   (db sqlite3-db)
   (sql :string)
   (len :int)
@@ -265,6 +238,7 @@
             (let ((db (cffi:mem-ref dbp 'sqlite3-db)))
               (declare (type cffi:foreign-pointer db))
               (setf (gethash db *db-pointers*) dbp)
+              (sqlite3-extended-result-codes db t)
               db))))))
 
 (declaim (ftype (function (cffi:foreign-pointer) t) sqlite3-close))
@@ -307,13 +281,16 @@
           ((= result SQLITE-DONE) nil)
           (t (signal-sqlite3-error result)))))
 
-(declaim (ftype (function (cffi:foreign-pointer) t) sqlite3-finalize))
-(defun sqlite3-finalize (stmt)
+(declaim (ftype (function (cffi:foreign-pointer &optional cffi:foreign-pointer) t) sqlite3-finalize))
+(defun sqlite3-finalize (stmt &optional db)
   (declare (type cffi:foreign-pointer stmt))
-  (let ((result (%finalize  stmt)))
-    (if (/= result SQLITE-OK)
-        (signal-sqlite3-error result)
-        (progn
-          (cffi:foreign-free (gethash stmt *stmt-pointers*))
-          (remhash stmt *stmt-pointers*)
-          t))))
+  (let* ((result (%finalize stmt))
+         (error (/= result SQLITE-OK)))
+    (unwind-protect
+         (when error
+           (if db
+               (signal-sqlite3-error db)
+               (signal-sqlite3-error result)))
+      (cffi:foreign-free (gethash stmt *stmt-pointers*))
+      (remhash stmt *stmt-pointers*)
+      error)))

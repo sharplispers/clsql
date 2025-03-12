@@ -70,7 +70,7 @@
         (when stmt
           (unwind-protect
                (sqlite3:sqlite3-step stmt)
-            (sqlite3:sqlite3-finalize stmt))))
+            (sqlite3:sqlite3-finalize stmt (sqlite3-db database)))))
     (sqlite3:sqlite3-error (err)
       (error 'sql-database-data-error
              :database database
@@ -136,7 +136,7 @@
         (progn
           (unless (eq stmt sqlite3:null-stmt)
             (ignore-errors
-              (sqlite3:sqlite3-finalize stmt)))
+              (sqlite3:sqlite3-finalize stmt (sqlite3-db database))))
           (error 'sql-database-data-error
                  :database database
                  :expression query-expression
@@ -145,7 +145,7 @@
 
 (defmethod database-dump-result-set (result-set (database sqlite3-database))
   (handler-case
-      (sqlite3:sqlite3-finalize (sqlite3-result-set-stmt result-set))
+      (sqlite3:sqlite3-finalize (sqlite3-result-set-stmt result-set) (sqlite3-db database))
     (sqlite3:sqlite3-error (err)
       (error 'sql-database-error
              :message
@@ -218,7 +218,7 @@
                      (if (sqlite3:sqlite3-step stmt)
                          (push (extract-row-data) rows)
                          (return))))))
-               (sqlite3:sqlite3-finalize stmt))
+               (sqlite3:sqlite3-finalize stmt (sqlite3-db database)))
         (values (nreverse rows) col-names))
     (sqlite3:sqlite3-error (err)
       (error 'sql-database-data-error
