@@ -23,7 +23,7 @@
   :long-description "cl-sql-sqlite3 package provides a database driver to SQLite Versione 3 database library."
 
 
-  :depends-on (clsql clsql-uffi)
+  :depends-on (:clsql :clsql-cffi)
   :components
   ((:module :db-sqlite3
 	    :components

@@ -3,7 +3,7 @@
 ;;;; FILE IDENTIFICATION
 ;;;;
 ;;;; Name:          sqlite3-loader.lisp
-;;;; Purpose:       Sqlite3 library loader using UFFI
+;;;; Purpose:       Sqlite3 library loader using CFFI
 ;;;; Programmer:    Aurelio Bignoli
 ;;;; Date Started:  Oct 2004
 ;;;;
@@ -16,22 +16,20 @@
 
 (in-package #:clsql-sqlite3)
 
-(defvar *sqlite3-supporting-libraries* '("c")
-  "Used only by CMU. List of library flags needed to be passed to ld
-to load the Sqlite3 library succesfully.  If this differs at your site,
-set to the right path before compiling or loading the system.")
-
-(defvar *sqlite3-library-loaded* nil
-  "T if foreign library was able to be loaded successfully")
+(cffi:define-foreign-library libsqlite3
+  (:darwin (:or "libsqlite3.dylib" "libsqlite3.0.dylib"))
+  (:unix (:or "libsqlite3.so.0" "libsqlite3.so"))
+  (t (:or (:default "libsqlite3") (:default "sqlite3"))))
 
 (defmethod database-type-library-loaded ((database-type (eql :sqlite3)))
   "T if foreign library was able to be loaded successfully. "
-  *sqlite3-library-loaded*)
+  (cffi:foreign-library-loaded-p 'libsqlite3))
 
 (defmethod database-type-load-foreign ((database-type (eql :sqlite3)))
-  (clsql-uffi:find-and-load-foreign-library '("libsqlite3" "sqlite3")
-                                            :module "sqlite3"
-                                            :supporting-libraries *sqlite3-supporting-libraries*)
-  (setq *sqlite3-library-loaded* t))
+  (setf cffi:*foreign-library-directories*
+        (remove-duplicates (append clsql:*foreign-library-search-paths*
+                                   cffi:*foreign-library-directories*)
+                           :test #'equal))
+  (cffi:load-foreign-library 'libsqlite3))
 
 (clsql-sys:database-type-load-foreign :sqlite3)
