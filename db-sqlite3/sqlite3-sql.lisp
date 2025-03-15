@@ -14,6 +14,10 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
+(defpackage #:clsql-sqlite3
+  (:use #:common-lisp #:clsql-sys)
+  (:export #:sqlite3-database))
+
 (in-package #:clsql-sqlite3)
 
 (defclass sqlite3-database (database)

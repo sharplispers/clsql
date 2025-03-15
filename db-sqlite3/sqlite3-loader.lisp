@@ -14,7 +14,7 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(in-package #:clsql-sqlite3)
+(in-package #:sqlite3)
 
 (cffi:define-foreign-library libsqlite3
   (:darwin (:or "libsqlite3.dylib" "libsqlite3.0.dylib"))

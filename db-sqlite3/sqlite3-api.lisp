@@ -14,51 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(defpackage #:sqlite3
-  (:use #:common-lisp)
-  (:export
-   ;; Conditions
-   #:sqlite3-error
-   #:sqlite3-error-code
-   #:sqlite3-error-message
-
-   ;; API functions.
-   #:sqlite3-open
-   #:sqlite3-close-v2
-   #:sqlite3-errmsg
-   #:sqlite3-errstr
-   #:sqlite3-extended-result-codes
-
-   #:sqlite3-prepare-v2
-   #:sqlite3-step
-   #:sqlite3-finalize
-
-   #:sqlite3-column-count
-   #:sqlite3-column-name
-   #:sqlite3-column-type
-   #:sqlite3-column-text
-   #:sqlite3-column-bytes
-   #:sqlite3-column-blob
-
-   ;; Types.
-   #:sqlite3-db
-   #:sqlite3-db-type
-   #:sqlite3-stmt
-   #:sqlite3-stmt-type
-   #:unsigned-char-ptr-type
-   #:null-stmt
-
-   ;; Return codes
-   #:SQLITE-ROW
-   #:SQLITE-DONE
-
-   ;; Columnt types.
-   #:SQLITE-INTEGER
-   #:SQLITE-FLOAT
-   #:SQLITE-TEXT
-   #:SQLITE-BLOB
-   #:SQLITE-NULL))
-
 (in-package #:sqlite3)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
