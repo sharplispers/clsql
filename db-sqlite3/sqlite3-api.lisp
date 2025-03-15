@@ -14,8 +14,6 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
-(in-package #:cl-user)
-
 (defpackage #:sqlite3
   (:use #:common-lisp)
   (:export
@@ -26,9 +24,12 @@
 
    ;; API functions.
    #:sqlite3-open
-   #:sqlite3-close
+   #:sqlite3-close-v2
+   #:sqlite3-errmsg
+   #:sqlite3-errstr
+   #:sqlite3-extended-result-codes
 
-   #:sqlite3-prepare
+   #:sqlite3-prepare-v2
    #:sqlite3-step
    #:sqlite3-finalize
 
@@ -42,9 +43,14 @@
    ;; Types.
    #:sqlite3-db
    #:sqlite3-db-type
+   #:sqlite3-stmt
    #:sqlite3-stmt-type
    #:unsigned-char-ptr-type
    #:null-stmt
+
+   ;; Return codes
+   #:SQLITE-ROW
+   #:SQLITE-DONE
 
    ;; Columnt types.
    #:SQLITE-INTEGER
@@ -86,6 +92,7 @@
 (defconstant SQLITE-FORMAT      24   "Auxiliary database format error")
 (defconstant SQLITE-RANGE       25   "2nd parameter to sqlite3_bind out of range")
 (defconstant SQLITE-NOTADB      26   "File opened that is not a database file")
+(declaim (type fixnum sqlite-row))
 (defconstant SQLITE-ROW         100  "sqlite3_step() has another row ready")
 (defconstant SQLITE-DONE        101  "sqlite3_step() has finished executing")
 
@@ -137,27 +144,26 @@
                      (sqlite3-error-code condition)
                      (sqlite3-error-message condition)))))
 
-(defgeneric signal-sqlite3-error (db))
-(defmethod signal-sqlite3-error (db)
-  (let ((condition
-         (make-condition 'sqlite3-error
-                         :code (sqlite3-errcode db)
-                         :message (sqlite3-errmsg db))))
-    (unless (signal condition)
-      (invoke-debugger condition))))
-
-(defmethod signal-sqlite3-error ((code number))
-  (let ((condition
-         (make-condition 'sqlite3-error
-                         :code code
-                         :message (sqlite3-errstr code))))
-    (unless (signal condition)
-      (invoke-debugger condition))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Library functions.
 ;;;;
+
+(cffi:define-foreign-type sqlite-code ()
+  ()
+  (:actual-type :int)
+  (:simple-parser sqlite-code))
+
+(defmethod cffi:translate-from-foreign (value (type sqlite-code))
+  (cond ((or (= value SQLITE-OK)
+             (= value SQLITE-ROW))
+         t)
+        ((= value SQLITE-DONE)
+         nil)
+        (t
+         (error 'sqlite3-error
+               :message (sqlite3-errstr value)
+               :code value))))
 
 (cffi:defcfun "sqlite3_extended_result_codes" :int
   (db sqlite3-db)
@@ -172,24 +178,24 @@
 (cffi:defcfun "sqlite3_errmsg" :string
   (db sqlite3-db))
 
-(cffi:defcfun ("sqlite3_open" %open) :int
+(cffi:defcfun "sqlite3_open" sqlite-code
   (dbname :string)
   (db (:pointer sqlite3-db)))
 
-(cffi:defcfun ("sqlite3_close_v2" %close) :int
+(cffi:defcfun "sqlite3_close_v2" sqlite-code
   (db sqlite3-db))
 
-(cffi:defcfun ("sqlite3_prepare_v2" %prepare) :int
+(cffi:defcfun "sqlite3_prepare_v2" sqlite-code
   (db sqlite3-db)
   (sql :string)
   (len :int)
   (stmt (:pointer sqlite3-stmt))
   (sql-tail (:pointer (:pointer :unsigned-char))))
 
-(cffi:defcfun ("sqlite3_step" %step) :int
+(cffi:defcfun "sqlite3_step" sqlite-code
   (stmt sqlite3-stmt))
 
-(cffi:defcfun ("sqlite3_finalize" %finalize) :int
+(cffi:defcfun "sqlite3_finalize" sqlite-code
   (stmt sqlite3-stmt))
 
 (cffi:defcfun "sqlite3_column_count" :int
@@ -214,83 +220,3 @@
 (cffi:defcfun "sqlite3_column_blob" (:pointer :void)
   (stmt sqlite3-stmt)
   (n-col :int))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;
-;;;; wrapper functions.
-;;;;
-(defun sqlite3-open (db &optional (mode 0)
-                     &aux (db-name (etypecase db
-                                     (pathname (namestring db))
-                                     (string db))))
-  (declare (ignore mode) (type string db-name))
-  (let ((dbp (cffi:foreign-alloc 'sqlite3-db)))
-    (declare (type cffi:foreign-pointer dbp))
-    (cffi:with-foreign-string (db-name-native db-name)
-      (let ((result (%open db-name-native dbp)))
-        (if (/=  result 0)
-            (progn
-              ;; According to docs, the db must be closed even in case
-              ;; of error.
-              (%close (cffi:mem-ref dbp 'sqlite3-db))
-              (cffi:foreign-free dbp)
-              (signal-sqlite3-error result))
-            (let ((db (cffi:mem-ref dbp 'sqlite3-db)))
-              (declare (type cffi:foreign-pointer db))
-              (setf (gethash db *db-pointers*) dbp)
-              (sqlite3-extended-result-codes db t)
-              db))))))
-
-(declaim (ftype (function (cffi:foreign-pointer) t) sqlite3-close))
-(defun sqlite3-close (db)
-  (declare (type cffi:foreign-pointer db))
-  (let ((result (%close db)))
-    (if (/= result 0)
-        (signal-sqlite3-error result)
-        (progn
-          (cffi:foreign-free (gethash db *db-pointers*))
-          (remhash db *db-pointers*)
-          t))))
-
-(declaim (ftype (function (cffi:foreign-pointer string) cffi:foreign-pointer) sqlite3-prepare))
-(defun sqlite3-prepare (db sql)
-  (declare (type cffi:foreign-pointer db))
-  (cffi:with-foreign-string (sql-native sql)
-    (let ((stmtp (cffi:foreign-alloc 'sqlite3-stmt)))
-      (declare (type cffi:foreign-pointer stmtp))
-      (cffi:with-foreign-object (sql-tail '(:pointer :unsigned-char))
-        (let ((result (%prepare db sql-native -1 stmtp sql-tail)))
-          (if (/= result SQLITE-OK)
-              (progn
-                (unless (cffi:null-pointer-p stmtp)
-                  ;; There is an error, but a statement has been allocated:
-                  ;; finalize it (better safe than sorry).
-                  (%finalize (cffi:mem-ref stmtp 'sqlite3-stmt)))
-                (cffi:foreign-free stmtp)
-                (signal-sqlite3-error db))
-              (let ((stmt (cffi:mem-ref stmtp 'sqlite3-stmt)))
-                (declare (type cffi:foreign-pointer stmt))
-                (setf (gethash stmt *stmt-pointers*) stmtp)
-                stmt)))))))
-
-(declaim (ftype (function (cffi:foreign-pointer) t) sqlite3-step))
-(defun sqlite3-step (stmt)
-  (declare (type cffi:foreign-pointer stmt))
-  (let ((result (%step stmt)))
-    (cond ((= result SQLITE-ROW) t)
-          ((= result SQLITE-DONE) nil)
-          (t (signal-sqlite3-error result)))))
-
-(declaim (ftype (function (cffi:foreign-pointer &optional cffi:foreign-pointer) t) sqlite3-finalize))
-(defun sqlite3-finalize (stmt &optional db)
-  (declare (type cffi:foreign-pointer stmt))
-  (let* ((result (%finalize stmt))
-         (error (/= result SQLITE-OK)))
-    (unwind-protect
-         (when error
-           (if db
-               (signal-sqlite3-error db)
-               (signal-sqlite3-error result)))
-      (cffi:foreign-free (gethash stmt *stmt-pointers*))
-      (remhash stmt *stmt-pointers*)
-      error)))

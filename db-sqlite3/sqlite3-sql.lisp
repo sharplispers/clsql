@@ -17,7 +17,8 @@
 (in-package #:clsql-sqlite3)
 
 (defclass sqlite3-database (database)
-  ((sqlite3-db :initarg :sqlite3-db :accessor sqlite3-db)))
+  ((sqlite3-db :initarg :sqlite3-db :accessor sqlite3-db)
+   (sqlite3-db-pointer :initarg :sqlite3-db-pointer :accessor sqlite3-db-pointer)))
 
 (defmethod database-type ((database sqlite3-database))
   :sqlite3)
@@ -35,56 +36,60 @@
 
 (defmethod database-connect (connection-spec (database-type (eql :sqlite3)))
   (check-sqlite3-connection-spec connection-spec)
-    (handler-case
-        (let ((db (sqlite3:sqlite3-open (first connection-spec)))
-              (init-foreign-func (second connection-spec)))
-          (declare (type cffi:foreign-pointer db))
-          (when init-foreign-func
-            (handler-case
-                (funcall init-foreign-func db)
-              (condition (c)
-                (progn
-                  (sqlite3:sqlite3-close db)
-                  (error c)))))
-          (make-instance 'sqlite3-database
-                         :name (database-name-from-spec connection-spec :sqlite3)
-                         :database-type :sqlite3
-                         :connection-spec connection-spec
-                         :sqlite3-db db))
-      (sqlite3:sqlite3-error (err)
-        (error 'sql-connection-error
-               :database-type database-type
-               :connection-spec connection-spec
-               :error-id (sqlite3:sqlite3-error-code err)
-               :message (sqlite3:sqlite3-error-message err)))))
+  (handler-case
+      (cffi:with-foreign-string (db-name (first connection-spec))
+        (let ((dbp (cffi:foreign-alloc 'sqlite3:sqlite3-db)))
+          (sqlite3:sqlite3-open (first connection-spec) dbp)
+          (let ((db (cffi:mem-ref dbp 'sqlite3:sqlite3-db))
+                (init-foreign-func (second connection-spec)))
+            (declare (type cffi:foreign-pointer db))
+            (sqlite3:sqlite3-extended-result-codes db t)
+            (when init-foreign-func
+              (unwind-protect
+                   (funcall init-foreign-func db)
+                (sqlite3:sqlite3-close-v2 db)))
+            (make-instance 'sqlite3-database
+                           :name (database-name-from-spec connection-spec :sqlite3)
+                           :database-type :sqlite3
+                           :connection-spec connection-spec
+                           :sqlite3-db db
+                           :sqlite3-db-pointer dbp))))
+    (sqlite3:sqlite3-error (err)
+      (error 'sql-connection-error
+             :database-type database-type
+             :connection-spec connection-spec
+             :error-id (sqlite3:sqlite3-error-code err)
+             :message (sqlite3:sqlite3-error-message err)))))
 
 (defmethod database-disconnect ((database sqlite3-database))
-  (sqlite3:sqlite3-close (sqlite3-db database))
+  (sqlite3:sqlite3-close-v2 (sqlite3-db database))
+  (cffi:foreign-free (sqlite3-db-pointer database))
   (setf (sqlite3-db database) nil)
   t)
 
 (defmethod database-execute-command (sql-expression (database sqlite3-database))
   (handler-case
-      (let ((stmt (sqlite3:sqlite3-prepare (sqlite3-db database) sql-expression)))
-        (declare (type cffi:foreign-pointer stmt))
-        (when stmt
-          (unwind-protect
-               (sqlite3:sqlite3-step stmt)
-            (sqlite3:sqlite3-finalize stmt (sqlite3-db database)))))
+      (cffi:with-foreign-string (sql sql-expression)
+        (cffi:with-foreign-objects ((stmtp 'sqlite3:sqlite3-stmt)
+                                    (sql-tail '(:pointer :unsigned-char)))
+          (sqlite3:sqlite3-prepare-v2 (sqlite3-db database) sql -1 stmtp sql-tail)
+          (let ((stmt (cffi:mem-ref stmtp 'sqlite3:sqlite3-stmt)))
+            (sqlite3:sqlite3-step stmt)
+            (sqlite3:sqlite3-finalize stmt))))
     (sqlite3:sqlite3-error (err)
       (error 'sql-database-data-error
              :database database
              :expression sql-expression
              :error-id (sqlite3:sqlite3-error-code err)
-             :message (sqlite3:sqlite3-error-message err))))
+             :message (sqlite3:sqlite3-errmsg (sqlite3-db database)))))
   t)
 
 (defstruct sqlite3-result-set
-  (stmt sqlite3:null-stmt
-        :type cffi:foreign-pointer)
+  (stmt (cffi:null-pointer) :type cffi:foreign-pointer)
+  (stmt-pointer (cffi:null-pointer) :type cffi:foreign-pointer)
   (n-col 0 :type fixnum)
-  (col-names '())
-  (result-types '()))
+  (col-names '() :type list)
+  (result-types '() :type list))
 
 (declaim (ftype (function (cffi:foreign-pointer fixnum t) list) get-result-types))
 (defun get-result-types (stmt n-col result-types)
@@ -111,41 +116,47 @@
 (defmethod database-query-result-set ((query-expression string)
                                       (database sqlite3-database)
                                       &key result-types full-set)
-  (let ((stmt sqlite3:null-stmt))
+  (let ((stmt (cffi:null-pointer))
+        (stmt-pointer (cffi:null-pointer)))
     (declare (type cffi:foreign-pointer stmt))
     (handler-case
+        (cffi:with-foreign-string (sql query-expression)
+          (setf stmt-pointer (cffi:foreign-alloc 'sqlite3:sqlite3-stmt))
+          (cffi:with-foreign-object (sql-tail '(:pointer :unsigned-char))
+            (sqlite3:sqlite3-prepare-v2 (sqlite3-db database) sql -1 stmt-pointer sql-tail)
+            (setf stmt (cffi:mem-ref stmt-pointer 'sqlite3:sqlite3-stmt))
+            (let* ((n-col (if (sqlite3:sqlite3-step stmt)
+                              ;; Non empty result set.
+                              (sqlite3:sqlite3-column-count stmt)
+                              ;; Empty result set.
+                              0))
+                   (result-set (make-sqlite3-result-set
+                                :stmt stmt
+                                :stmt-pointer stmt-pointer
+                                :n-col n-col
+                                :col-names (loop for n from 0 below n-col
+                                                 collect (sqlite3:sqlite3-column-name stmt n))
+                                :result-types (when (> n-col 0)
+                                                (get-result-types stmt n-col result-types)))))
+              (if full-set
+                  (values result-set n-col nil)
+                  (values result-set n-col)))))
+      (sqlite3:sqlite3-error (err)
         (progn
-          (setf stmt (sqlite3:sqlite3-prepare (sqlite3-db database)
-                                              query-expression))
-          (let* ((n-col (if (sqlite3:sqlite3-step stmt)
-                            ;; Non empty result set.
-                            (sqlite3:sqlite3-column-count stmt)
-                            ;; Empty result set.
-                            0))
-                 (result-set (make-sqlite3-result-set
-                              :stmt stmt
-                              :n-col n-col
-                              :col-names (loop for n from 0 below n-col
-                                               collect (sqlite3:sqlite3-column-name stmt n))
-                              :result-types (when (> n-col 0)
-                                              (get-result-types stmt n-col result-types)))))
-            (if full-set
-                (values result-set n-col nil)
-                (values result-set n-col))))
-    (sqlite3:sqlite3-error (err)
-        (progn
-          (unless (eq stmt sqlite3:null-stmt)
-            (ignore-errors
-              (sqlite3:sqlite3-finalize stmt (sqlite3-db database))))
+          (unless (cffi:null-pointer-p stmt)
+            (ignore-errors (sqlite3:sqlite3-finalize stmt)
+                           (cffi:foreign-free stmt-pointer)))
           (error 'sql-database-data-error
                  :database database
                  :expression query-expression
                  :error-id (sqlite3:sqlite3-error-code err)
-                 :message (sqlite3:sqlite3-error-message err)))))))
+                 :message (sqlite3:sqlite3-errmsg (sqlite3-db database))))))))
 
 (defmethod database-dump-result-set (result-set (database sqlite3-database))
   (handler-case
-      (sqlite3:sqlite3-finalize (sqlite3-result-set-stmt result-set) (sqlite3-db database))
+      (progn
+        (sqlite3:sqlite3-finalize (sqlite3-result-set-stmt result-set))
+        (cffi:foreign-free (sqlite3-result-set-stmt-pointer result-set)))
     (sqlite3:sqlite3-error (err)
       (error 'sql-database-error
              :message
@@ -163,18 +174,19 @@
           ;; Store row in list.
           (loop for i = 0 then (1+ i)
                 for rest on list
-                for types = (sqlite3-result-set-result-types result-set) then (rest types)
+                for type in (sqlite3-result-set-result-types result-set)
                 do (setf (car rest)
-                         (if (eq (first types) :blob)
+                         (if (eq  type :blob)
                              (clsql-cffi:convert-raw-field
                               (sqlite3:sqlite3-column-blob stmt i)
-                              (car types)
+                              type
                               :length (sqlite3:sqlite3-column-bytes stmt i)
                               :encoding (encoding database))
                              (clsql-cffi:convert-raw-field
                               (sqlite3:sqlite3-column-text stmt i)
-                              (car types)
-                              :encoding (encoding database)))))
+                              type
+                              :encoding (encoding database)))
+                         ))
           ;; Advance result set cursor.
           (handler-case
               (unless (sqlite3:sqlite3-step stmt)
@@ -189,43 +201,41 @@
 (defmethod database-query (query-expression (database sqlite3-database) result-types field-names)
   (declare (optimize (speed 3) (safety 0) (debug 0) (space 0)))
   (handler-case
-      (let ((stmt (sqlite3:sqlite3-prepare (sqlite3-db database)
-                                           query-expression))
-            (rows '())
-            (col-names '()))
-        (declare (type cffi:foreign-pointer stmt))
-        (unwind-protect
-             (when (sqlite3:sqlite3-step stmt)
-               (let ((n-col (sqlite3:sqlite3-column-count stmt)))
-                 (flet ((extract-row-data ()
-                          (loop for i fixnum from 0 below n-col
-                                for types = (get-result-types stmt n-col result-types) then (rest types)
-                                collect (if (eq (first types) :blob)
-                                            (clsql-cffi:convert-raw-field
-                                             (sqlite3:sqlite3-column-blob stmt i)
-                                             (car types)
-                                             :length (sqlite3:sqlite3-column-bytes stmt i)
-                                             :encoding (encoding database))
-                                            (clsql-cffi:convert-raw-field
-                                             (sqlite3:sqlite3-column-text stmt i)
-                                             (car types)
-                                             :encoding (encoding database))))))
-                   (when field-names
-                     (setf col-names (loop for n fixnum from 0 below n-col
-                                           collect (sqlite3:sqlite3-column-name stmt n))))
-                   (push (extract-row-data) rows)
-                   (do* () (nil)
-                     (if (sqlite3:sqlite3-step stmt)
-                         (push (extract-row-data) rows)
-                         (return))))))
-               (sqlite3:sqlite3-finalize stmt (sqlite3-db database)))
-        (values (nreverse rows) col-names))
+      (cffi:with-foreign-string (sql query-expression)
+        (cffi:with-foreign-objects ((stmt-pointer 'sqlite3:sqlite3-stmt)
+                                    (sql-tail '(:pointer :unsigned-char)))
+          (sqlite3:sqlite3-prepare-v2 (sqlite3-db database) sql -1 stmt-pointer sql-tail)
+          (let ((stmt (cffi:mem-ref stmt-pointer 'sqlite3:sqlite3-stmt)))
+            (declare (type cffi:foreign-pointer stmt))
+            (unwind-protect
+                 (when (sqlite3:sqlite3-step stmt)
+                   (let ((n-col (sqlite3:sqlite3-column-count stmt)))
+                     (flet ((extract-row-data ()
+                              (loop for i fixnum from 0 below n-col
+                                    for types = (get-result-types stmt n-col result-types) then (rest types)
+                                    collect (if (eq (first types) :blob)
+                                                (clsql-cffi:convert-raw-field
+                                                 (sqlite3:sqlite3-column-blob stmt i)
+                                                 (car types)
+                                                 :length (sqlite3:sqlite3-column-bytes stmt i)
+                                                 :encoding (encoding database))
+                                                (clsql-cffi:convert-raw-field
+                                                 (sqlite3:sqlite3-column-text stmt i)
+                                                 (car types)
+                                                 :encoding (encoding database))))))
+                       (values
+                        (loop :collect (extract-row-data)
+                              :while (sqlite3:sqlite3-step stmt))
+                        (when field-names
+                          (loop for n fixnum from 0 below n-col
+                                collect (sqlite3:sqlite3-column-name stmt n)))))))
+              (sqlite3:sqlite3-finalize stmt)))))
     (sqlite3:sqlite3-error (err)
       (error 'sql-database-data-error
              :database database
              :expression query-expression
              :error-id (sqlite3:sqlite3-error-code err)
-             :message (sqlite3:sqlite3-error-message err)))))
+             :message (sqlite3:sqlite3-errmsg (sqlite3-db sqlite3-database))))))
 
 ;;; Object listing
 
