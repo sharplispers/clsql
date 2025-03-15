@@ -39,6 +39,9 @@
    #:sqlite3-column-text
    #:sqlite3-column-bytes
    #:sqlite3-column-blob
+   #:sqlite3-column-int
+   #:sqlite3-column-int64
+   #:sqlite3-column-double
 
    ;; Types.
    #:sqlite3-db

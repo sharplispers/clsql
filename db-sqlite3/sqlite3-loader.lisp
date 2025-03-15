@@ -21,11 +21,11 @@
   (:unix (:or "libsqlite3.so.0" "libsqlite3.so"))
   (t (:or (:default "libsqlite3") (:default "sqlite3"))))
 
-(defmethod database-type-library-loaded ((database-type (eql :sqlite3)))
+(defmethod clsql-sys:database-type-library-loaded ((database-type (eql :sqlite3)))
   "T if foreign library was able to be loaded successfully. "
   (cffi:foreign-library-loaded-p 'libsqlite3))
 
-(defmethod database-type-load-foreign ((database-type (eql :sqlite3)))
+(defmethod clsql-sys:database-type-load-foreign ((database-type (eql :sqlite3)))
   (setf cffi:*foreign-library-directories*
         (remove-duplicates (append clsql:*foreign-library-search-paths*
                                    cffi:*foreign-library-directories*)

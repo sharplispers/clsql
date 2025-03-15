@@ -93,29 +93,45 @@
   (stmt-pointer (cffi:null-pointer) :type cffi:foreign-pointer)
   (n-col 0 :type fixnum)
   (col-names '() :type list)
-  (result-types '() :type list))
+  (result-type-functions '() :type list))
 
-(declaim (ftype (function (cffi:foreign-pointer fixnum t) list) get-result-types))
-(defun get-result-types (stmt n-col result-types)
-  (declare (type cffi:foreign-pointer stmt) (type fixnum n-col))
-  (if (eq :auto result-types)
-      (loop for n from 0 below n-col
-            collect (let ((column-type (sqlite3:sqlite3-column-type stmt n)))
-                      (cond
-                        ((= column-type sqlite3:SQLITE-INTEGER) :int64)
-                        ((= column-type sqlite3:SQLITE-FLOAT) :double)
-                        ((= column-type sqlite3:SQLITE-TEXT) :string)
-                        ((= column-type sqlite3:SQLITE-BLOB) :blob)
-                        ((= column-type sqlite3:SQLITE-NULL) :string)
-                        (t :string))))
-      (loop for type in result-types
-            collect (case type
-                      ((:int :integer :tinyint) :int32)
-                      (:long #+(or x86-64 64bit) :int64 #-(or x86-64 64bit) :int32)
-                      (:bigint :int64)
-                      ((:float :double) :double)
-                      ((:numeric) :number)
-                      (otherwise :string)))))
+(declaim (ftype (function (cffi:foreign-pointer fixnum t sqlite3-database) list) get-result-type-functions))
+(defun get-result-type-functions (stmt n-col result-types database)
+  (declare (type cffi:foreign-pointer stmt)
+           (type fixnum n-col))
+  (flet ((result-to-string (stmt i)
+           (cffi:foreign-string-to-lisp
+            (sqlite3:sqlite3-column-text stmt i)
+            :encoding (encoding database))))
+    (if (eq :auto result-types)
+        (loop for n from 0 below n-col
+              collect (let ((column-type (sqlite3:sqlite3-column-type stmt n)))
+                        (cond
+                          ((= column-type sqlite3:SQLITE-INTEGER) #'sqlite3:sqlite3-column-int64)
+                          ((= column-type sqlite3:SQLITE-FLOAT) #'sqlite3:sqlite3-column-double)
+                          ((= column-type sqlite3:SQLITE-BLOB) (lambda (stmt i)
+                                                                 (let* ((char-ptr (sqlite3:sqlite3-column-blob stmt i))
+                                                                        (length  (sqlite3:sqlite3-column-bytes stmt i))
+                                                                        (a (make-array length :element-type '(unsigned-byte 8))))
+                                                                   (dotimes (i length a)
+                                                                     (setf (aref a i) (cffi:mem-ref char-ptr :unsigned-char i))))))
+                          (t
+                           ;; SQLITE-NULL, SQLITE-TEXT, other
+                           #'result-to-string))))
+        (let ((result-fns (make-list n-col)))
+          (loop for rest on result-fns
+                for types = result-types then (rest types)
+                as type = (car types)
+                do (setf (car rest)
+                         (case type
+                           ((:int :integer :tinyint) #'sqlite3:sqlite3-column-int)
+                           (:long
+                            #+(or x86-64 64bit) #'sqlite3:sqlite3-column-int64
+                            #-(or x86-64 64bit) 'sqlite3:sqlite3-column-int)
+                           (:bigint #'sqlite3:sqlite3-column-int64)
+                           ((:float :double) #'sqlite3:sqlite3-column-double)
+                           (otherwise #'result-to-string))))
+          result-fns))))
 
 (defmethod database-query-result-set ((query-expression string)
                                       (database sqlite3-database)
@@ -140,8 +156,9 @@
                                 :n-col n-col
                                 :col-names (loop for n from 0 below n-col
                                                  collect (sqlite3:sqlite3-column-name stmt n))
-                                :result-types (when (> n-col 0)
-                                                (get-result-types stmt n-col result-types)))))
+                                :result-type-functions
+                                (when (> n-col 0)
+                                  (get-result-type-functions stmt n-col result-types database)))))
               (if full-set
                   (values result-set n-col nil)
                   (values result-set n-col)))))
@@ -168,6 +185,7 @@
                      (sqlite3:sqlite3-error-message err))))))
 
 (defmethod database-store-next-row (result-set (database sqlite3-database) list)
+  (declare (optimize (speed 3) (safety 1)))
   (let ((n-col (sqlite3-result-set-n-col result-set)))
     (if (= n-col 0)
         ;; empty result set.
@@ -176,21 +194,10 @@
         (let ((stmt (sqlite3-result-set-stmt result-set)))
           (declare (type cffi:foreign-pointer stmt))
           ;; Store row in list.
-          (loop for i = 0 then (1+ i)
+          (loop for i fixnum = 0 then (1+ i)
                 for rest on list
-                for type in (sqlite3-result-set-result-types result-set)
-                do (setf (car rest)
-                         (if (eq  type :blob)
-                             (clsql-cffi:convert-raw-field
-                              (sqlite3:sqlite3-column-blob stmt i)
-                              type
-                              :length (sqlite3:sqlite3-column-bytes stmt i)
-                              :encoding (encoding database))
-                             (clsql-cffi:convert-raw-field
-                              (sqlite3:sqlite3-column-text stmt i)
-                              type
-                              :encoding (encoding database)))
-                         ))
+                for type-fn in (sqlite3-result-set-result-type-functions result-set)
+                do (setf (car rest) (funcall (the function type-fn) stmt i)))
           ;; Advance result set cursor.
           (handler-case
               (unless (sqlite3:sqlite3-step stmt)
@@ -203,7 +210,7 @@
 
 
 (defmethod database-query (query-expression (database sqlite3-database) result-types field-names)
-  (declare (optimize (speed 3) (safety 0) (debug 0) (space 0)))
+  (declare (optimize (speed 3) (safety 1)))
   (handler-case
       (cffi:with-foreign-string (sql query-expression)
         (cffi:with-foreign-objects ((stmt-pointer 'sqlite3:sqlite3-stmt)
@@ -213,20 +220,12 @@
             (declare (type cffi:foreign-pointer stmt))
             (unwind-protect
                  (when (sqlite3:sqlite3-step stmt)
-                   (let ((n-col (sqlite3:sqlite3-column-count stmt)))
+                   (let* ((n-col (sqlite3:sqlite3-column-count stmt))
+                          (type-fns (get-result-type-functions stmt n-col result-types database)))
                      (flet ((extract-row-data ()
                               (loop for i fixnum from 0 below n-col
-                                    for types = (get-result-types stmt n-col result-types) then (rest types)
-                                    collect (if (eq (first types) :blob)
-                                                (clsql-cffi:convert-raw-field
-                                                 (sqlite3:sqlite3-column-blob stmt i)
-                                                 (car types)
-                                                 :length (sqlite3:sqlite3-column-bytes stmt i)
-                                                 :encoding (encoding database))
-                                                (clsql-cffi:convert-raw-field
-                                                 (sqlite3:sqlite3-column-text stmt i)
-                                                 (car types)
-                                                 :encoding (encoding database))))))
+                                    for type-fn in type-fns
+                                    collect (funcall (the function type-fn) stmt i))))
                        (values
                         (loop :collect (extract-row-data)
                               :while (sqlite3:sqlite3-step stmt))
@@ -239,7 +238,7 @@
              :database database
              :expression query-expression
              :error-id (sqlite3:sqlite3-error-code err)
-             :message (sqlite3:sqlite3-errmsg (sqlite3-db sqlite3-database))))))
+             :message (sqlite3:sqlite3-errmsg (sqlite3-db database))))))
 
 ;;; Object listing
 

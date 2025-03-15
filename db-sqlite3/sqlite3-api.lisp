@@ -175,3 +175,15 @@
 (cffi:defcfun "sqlite3_column_blob" (:pointer :void)
   (stmt sqlite3-stmt)
   (n-col :int))
+
+(cffi:defcfun "sqlite3_column_int" :int32
+  (stmt sqlite3-stmt)
+  (n-col :int))
+
+(cffi:defcfun "sqlite3_column_int64" :int64
+  (stmt sqlite3-stmt)
+  (n-col :int))
+
+(cffi:defcfun "sqlite3_column_double" :double
+  (stmt sqlite3-stmt)
+  (n-col :int))
