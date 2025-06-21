@@ -476,7 +476,7 @@ This makes the functions db-execute-command and db-query thread safe."
                    (or (case (aref column-sql-types i)
                          ((#.odbc::$SQL_NUMERIC #.odbc::$SQL_DECIMAL) :double))
                        T))
-
+                 (#.odbc::$SQL_C_BINARY odbc::*binary-format*)
                  (t t)))
               (t t)))))
   query)

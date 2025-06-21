@@ -688,7 +688,7 @@ May be locally bound to something else if a certain type is necessary.")
                       (#.$SQL_C_BIT     ; encountered only in Access
                        (get-cast-byte data-ptr))
                       (#.$SQL_C_BINARY
-                       (get-cast-binary data-ptr out-len *binary-format*))
+                       (get-cast-binary data-ptr out-len result-type))
                       ((#.$SQL_C_SSHORT #.$SQL_C_STINYINT) ; LMH short ints
                        (get-cast-short data-ptr)) ; LMH
                       (#.$SQL_C_SBIGINT (get-cast-big data-ptr))
@@ -866,39 +866,58 @@ May be locally bound to something else if a certain type is necessary.")
 
 (defun read-data-in-chunks (hstmt column-nr data-ptr c-type sql-type
                             out-len-ptr result-type)
-  (declare (type cffi:foreign-pointer out-len-ptr)
-           (ignore result-type))
-
+  (declare (type cffi:foreign-pointer out-len-ptr))
   (let* ((res (%sql-get-data hstmt column-nr c-type data-ptr
                              +max-precision+ out-len-ptr))
          (out-len (get-cast-long out-len-ptr))
-         (result (if (equal out-len #.$SQL_NULL_DATA)
-                     (return-from read-data-in-chunks *null*)
-                     
-                     ;;this isn't the most efficient way of doing it:
-                     ;;the foreign string gets copied to lisp, then
-                     ;;that is copied into the final string. However,
-                     ;;the previous impl that tried to copy one
-                     ;;character over at a time failed miserably on
-                     ;;multibyte characters.
-                     ;;
-                     ;;In the face of multibyte characters, the out-len
-                     ;;tells us the length in bytes but that doesn't
-                     ;;particularly help us here in allocating a lisp
-                     ;;array. So our best strategy is to just let the
-                     ;;foreign library that's already dealing with
-                     ;;encodings do its thing.
-                   
-                     (with-output-to-string (str)
-                       (loop do (if (= c-type #.$SQL_CHAR)
-                                    (write-sequence (get-cast-foreign-string data-ptr) str)
-                                    (error 'clsql:sql-database-error
-                                           :message "wrong type. preliminary."))
-                             while (and (= res $SQL_SUCCESS_WITH_INFO)
-                                        (equal (sql-state +null-handle-ptr+ +null-handle-ptr+ hstmt)
-                                               "01004"))
-                             do (setf res (%sql-get-data hstmt column-nr c-type data-ptr
-                                                         +max-precision+ out-len-ptr)))))))
+         (result (cond ((equal out-len #.$SQL_NULL_DATA)
+                       (return-from read-data-in-chunks *null*))
+
+                       ;;this isn't the most efficient way of doing it:
+                       ;;the foreign string gets copied to lisp, then
+                       ;;that is copied into the final string. However,
+                       ;;the previous impl that tried to copy one
+                       ;;character over at a time failed miserably on
+                       ;;multibyte characters.
+                       ;;
+                       ;;In the face of multibyte characters, the out-len
+                       ;;tells us the length in bytes but that doesn't
+                       ;;particularly help us here in allocating a lisp
+                       ;;array. So our best strategy is to just let the
+                       ;;foreign library that's already dealing with
+                       ;;encodings do its thing.
+
+                       ((= c-type #.$SQL_CHAR)
+                        (with-output-to-string (str)
+                          (loop do (write-sequence (get-cast-foreign-string data-ptr) str)
+                                while (and (= res $SQL_SUCCESS_WITH_INFO)
+                                           (equal (sql-state +null-handle-ptr+ +null-handle-ptr+ hstmt)
+                                                  "01004"))
+                                do (setf res (%sql-get-data hstmt column-nr c-type data-ptr
+                                                            +max-precision+ out-len-ptr)))))
+                       ((= c-type #.$SQL_BINARY)
+                        (loop
+                          ;; TODO: feels like there's a better way to track the
+                          ;; number to read, but reading varbinary in chunks
+                          ;; didn't even used to work at all, so I'll take it
+                          ;; for now.
+                          :as to-read := +max-precision+ :then (min +max-precision+ (- out-len bytes-read))
+                          :as bytes-read := to-read :then (+ bytes-read to-read)
+                          ;; TODO: It's probably more efficient to pre-allocate
+                          ;; the whole vector ande (replace ...), right? I don't know.
+                          :as vec := (get-cast-binary data-ptr to-read result-type)
+                            :then  (concatenate
+                                    (ecase result-type
+                                      (:bit-vector 'simple-bit-vector)
+                                      (:unsigned-byte-vector '(array (unsigned-byte 8) (*))))
+                                    vec (get-cast-binary data-ptr to-read result-type))
+                          while (and (= res $SQL_SUCCESS_WITH_INFO)
+                                     (equal (sql-state +null-handle-ptr+ +null-handle-ptr+ hstmt)
+                                            "01004"))
+                          do (setf res (%sql-get-data hstmt column-nr c-type data-ptr
+                                                      +max-precision+ out-len-ptr))
+                          :finally (return vec)))
+                       (t (error 'clsql:sql-database-error :message "Unhandled arbitrary size/precision type.")))))
 
     ;; reset the out length for the next row
     (setf (cffi:mem-ref out-len-ptr #.$ODBC-LONG-TYPE) #.$SQL_NO_TOTAL)
