@@ -901,7 +901,7 @@ May be locally bound to something else if a certain type is necessary.")
                           ;; number to read, but reading varbinary in chunks
                           ;; didn't even used to work at all, so I'll take it
                           ;; for now.
-                          :as to-read := +max-precision+ :then (min +max-precision+ (- out-len bytes-read))
+                          :as to-read := (min +max-precision+ out-len) :then (min +max-precision+ (- out-len bytes-read))
                           :as bytes-read := to-read :then (+ bytes-read to-read)
                           ;; TODO: It's probably more efficient to pre-allocate
                           ;; the whole vector ande (replace ...), right? I don't know.
