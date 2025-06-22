@@ -897,26 +897,26 @@ May be locally bound to something else if a certain type is necessary.")
                                                             +max-precision+ out-len-ptr)))))
                        ((= c-type #.$SQL_BINARY)
                         (loop
+                          :with result := (make-array (if (eql result-type :bit-vector)
+                                                          (ash out-len 3)
+                                                          out-len)
+                                                      :element-type '(unsigned-byte 8))
                           ;; TODO: feels like there's a better way to track the
                           ;; number to read, but reading varbinary in chunks
                           ;; didn't even used to work at all, so I'll take it
                           ;; for now.
+                          :as bytes-read := 0 :then (+ bytes-read to-read)
                           :as to-read := (min +max-precision+ out-len) :then (min +max-precision+ (- out-len bytes-read))
-                          :as bytes-read := to-read :then (+ bytes-read to-read)
-                          ;; TODO: It's probably more efficient to pre-allocate
-                          ;; the whole vector ande (replace ...), right? I don't know.
-                          :as vec := (get-cast-binary data-ptr to-read result-type)
-                            :then  (concatenate
-                                    (ecase result-type
-                                      (:bit-vector 'simple-bit-vector)
-                                      (:unsigned-byte-vector '(array (unsigned-byte 8) (*))))
-                                    vec (get-cast-binary data-ptr to-read result-type))
+                          do (replace result (get-cast-binary data-ptr to-read result-type)
+                                      :start1 (if (eql result-type :bit-vector)
+                                                  (ash bytes-read 3)
+                                                  bytes-read))
                           while (and (= res $SQL_SUCCESS_WITH_INFO)
                                      (equal (sql-state +null-handle-ptr+ +null-handle-ptr+ hstmt)
                                             "01004"))
                           do (setf res (%sql-get-data hstmt column-nr c-type data-ptr
                                                       +max-precision+ out-len-ptr))
-                          :finally (return vec)))
+                          :finally (return result)))
                        (t (error 'clsql:sql-database-error :message "Unhandled arbitrary size/precision type.")))))
 
     ;; reset the out length for the next row
