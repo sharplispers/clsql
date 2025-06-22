@@ -57,7 +57,7 @@ development has stopped on these incorporated projects.
 
 #### SQL Server
 
-You can test ODBC with SQL Server locally using podman. For example, on a Debian-based system:
+You can test ODBC with SQL Server locally using podman. For example:
 
 1. Install required packages
    - Debian
