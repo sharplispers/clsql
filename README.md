@@ -60,9 +60,14 @@ development has stopped on these incorporated projects.
 You can test ODBC with SQL Server locally using podman. For example, on a Debian-based system:
 
 1. Install required packages
-   ```bash
-   sudo apt install podman libodbc2 unixodbc-dev tdsodbc
-   ```
+   - Debian
+     ```bash
+     sudo apt install podman libodbc2 unixodbc-dev tdsodbc
+     ```
+   - Fedora
+     ```bash
+     sudo dnf install podman unixODBC unixODBC-devel freetds-libs freetds-devel
+     ```
 2. Start SQL Server container
    ```bash
    podman run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=yourStrong(!)Password" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
