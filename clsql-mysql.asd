@@ -14,6 +14,9 @@
 ;;;; (http://opensource.franz.com/preamble.html), also known as the LLGPL.
 ;;;; *************************************************************************
 
+(defpackage #:clsql-mysql-system (:use #:asdf #:cl))
+(in-package #:clsql-mysql-system)
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (unless (find-package 'uffi)
     (asdf:operate 'asdf:load-op 'uffi)))
