@@ -93,45 +93,50 @@
   (stmt-pointer (cffi:null-pointer) :type cffi:foreign-pointer)
   (n-col 0 :type fixnum)
   (col-names '() :type list)
-  (result-type-functions '() :type list))
+  (result-types '() :type list))
 
 (declaim (ftype (function (cffi:foreign-pointer fixnum t sqlite3-database) list) get-result-type-functions))
 (defun get-result-type-functions (stmt n-col result-types database)
   (declare (type cffi:foreign-pointer stmt)
            (type fixnum n-col))
-  (flet ((result-to-string (stmt i)
-           (cffi:foreign-string-to-lisp
-            (sqlite3:sqlite3-column-text stmt i)
-            :encoding (encoding database))))
+  (labels ((result-to-string (stmt i)
+             (cffi:foreign-string-to-lisp
+              (sqlite3:sqlite3-column-text stmt i)
+              :encoding (encoding database)))
+           (result-to-u8-array (stmt i)
+             (let* ((char-ptr (sqlite3:sqlite3-column-blob stmt i))
+                    (length  (sqlite3:sqlite3-column-bytes stmt i))
+                    (a (make-array length :element-type '(unsigned-byte 8))))
+               (dotimes (i length a)
+                 (setf (aref a i) (cffi:mem-ref char-ptr :unsigned-char i)))))
+           (column-type->function (type)
+             (cond
+               ((= type sqlite3:SQLITE-INTEGER) #'sqlite3:sqlite3-column-int64)
+               ((= type sqlite3:SQLITE-FLOAT) #'sqlite3:sqlite3-column-double)
+               ((= type sqlite3:SQLITE-BLOB) #'result-to-u8-array)
+               (t
+                ;; SQLITE-NULL, SQLITE-TEXT, other
+                #'result-to-string)))
+           (result-type->function (type)
+             (case type
+               ((:int :integer :tinyint) #'sqlite3:sqlite3-column-int)
+               (:long
+                #+(or x86-64 64bit) #'sqlite3:sqlite3-column-int64
+                #-(or x86-64 64bit) 'sqlite3:sqlite3-column-int)
+               (:bigint #'sqlite3:sqlite3-column-int64)
+               ((:float :double) #'sqlite3:sqlite3-column-double)
+               (:blob #'result-to-u8-array)
+               (otherwise #'result-to-string))))
     (if (eq :auto result-types)
         (loop for n from 0 below n-col
-              collect (let ((column-type (sqlite3:sqlite3-column-type stmt n)))
-                        (cond
-                          ((= column-type sqlite3:SQLITE-INTEGER) #'sqlite3:sqlite3-column-int64)
-                          ((= column-type sqlite3:SQLITE-FLOAT) #'sqlite3:sqlite3-column-double)
-                          ((= column-type sqlite3:SQLITE-BLOB) (lambda (stmt i)
-                                                                 (let* ((char-ptr (sqlite3:sqlite3-column-blob stmt i))
-                                                                        (length  (sqlite3:sqlite3-column-bytes stmt i))
-                                                                        (a (make-array length :element-type '(unsigned-byte 8))))
-                                                                   (dotimes (i length a)
-                                                                     (setf (aref a i) (cffi:mem-ref char-ptr :unsigned-char i))))))
-                          (t
-                           ;; SQLITE-NULL, SQLITE-TEXT, other
-                           #'result-to-string))))
-        (let ((result-fns (make-list n-col)))
-          (loop for rest on result-fns
-                for types = result-types then (rest types)
-                as type = (car types)
-                do (setf (car rest)
-                         (case type
-                           ((:int :integer :tinyint) #'sqlite3:sqlite3-column-int)
-                           (:long
-                            #+(or x86-64 64bit) #'sqlite3:sqlite3-column-int64
-                            #-(or x86-64 64bit) 'sqlite3:sqlite3-column-int)
-                           (:bigint #'sqlite3:sqlite3-column-int64)
-                           ((:float :double) #'sqlite3:sqlite3-column-double)
-                           (otherwise #'result-to-string))))
-          result-fns))))
+              collect (column-type->function (sqlite3:sqlite3-column-type stmt n)))
+        (loop :for types := result-types :then (cdr result-types)
+              :as result-type := (car types)
+              :for n :from 0 :below n-col
+              :collect
+              (if (and result-type (not (eql result-type :auto)))
+                  (result-type->function result-type)
+                  (column-type->function (sqlite3:sqlite3-column-type stmt n)))))))
 
 (defmethod database-query-result-set ((query-expression string)
                                       (database sqlite3-database)
@@ -156,9 +161,7 @@
                                 :n-col n-col
                                 :col-names (loop for n from 0 below n-col
                                                  collect (sqlite3:sqlite3-column-name stmt n))
-                                :result-type-functions
-                                (when (> n-col 0)
-                                  (get-result-type-functions stmt n-col result-types database)))))
+                                :result-types result-types)))
               (if full-set
                   (values result-set n-col nil)
                   (values result-set n-col)))))
@@ -196,7 +199,7 @@
           ;; Store row in list.
           (loop for i fixnum = 0 then (1+ i)
                 for rest on list
-                for type-fn in (sqlite3-result-set-result-type-functions result-set)
+                for type-fn in (get-result-type-functions stmt n-col (sqlite3-result-set-result-types result-set) database)
                 do (setf (car rest) (funcall (the function type-fn) stmt i)))
           ;; Advance result set cursor.
           (handler-case
@@ -220,11 +223,10 @@
             (declare (type cffi:foreign-pointer stmt))
             (unwind-protect
                  (when (sqlite3:sqlite3-step stmt)
-                   (let* ((n-col (sqlite3:sqlite3-column-count stmt))
-                          (type-fns (get-result-type-functions stmt n-col result-types database)))
+                   (let* ((n-col (sqlite3:sqlite3-column-count stmt)))
                      (flet ((extract-row-data ()
                               (loop for i fixnum from 0 below n-col
-                                    for type-fn in type-fns
+                                    for type-fns in (get-result-type-functions stmt n-col result-types database)
                                     collect (funcall (the function type-fn) stmt i))))
                        (values
                         (loop :collect (extract-row-data)
