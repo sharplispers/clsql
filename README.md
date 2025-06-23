@@ -50,6 +50,8 @@ development has stopped on these incorporated projects.
   PostgreSQL programming interface
 - [TeMPOraL/cl-sqlite](https://github.com/TeMPOraL/cl-sqlite) - Common Lisp
   binding for SQLite
+- [hackinghat/cl-mysql](https://github.com/hackinghat/cl-mysql) - Common Lisp
+  MySQL library
 
 ## Developer test quickstart
 
