@@ -509,3 +509,7 @@ removed. keys are searched with #'MEMBER"
   (if (and (listp x) (= 1 (length x)))
       (first x)
       x))
+
+(defmacro defconstant-if-unbound (name expression &optional documentation)
+  (unless (boundp name)
+    `(defconstant ,name ,expression ,documentation)))

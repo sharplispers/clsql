@@ -24,11 +24,14 @@
 
 
   :depends-on (:clsql :cffi)
+  :defsystem-depends-on ((:feature :clsql-grovel :cffi-grovel))
   :components
   ((:module :db-sqlite3
 	    :components
 	    ((:file "sqlite3-package")
 	     (:file "sqlite3-loader" :depends-on ("sqlite3-package"))
+             #+clsql-grovel
+             (:cffi-grovel-file "sqlite3-constants" :depends-on ("sqlite3-loader" "sqlite3-package"))
 	     (:file "sqlite3-api" :depends-on ("sqlite3-loader"))
 	     (:file "sqlite3-sql" :depends-on ("sqlite3-api"))
 	     (:file "sqlite3-methods" :depends-on ("sqlite3-sql"))))))

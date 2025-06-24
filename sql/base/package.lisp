@@ -210,6 +210,7 @@
      #:sql-escape-quotes
      #:sql-escape
      #:in
+     #:defconstant-if-unbound
 
      ;; Command-object.lisp
      #:expression
