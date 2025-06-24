@@ -87,7 +87,7 @@ Using podman:
 1. Install required packages
    - Fedora
      ```bash
-     mysql-devel mysql-libs
+     sudo dnf install mysql-devel mysql-libs
      ```
 2. Start MySQL container
    ```bash
