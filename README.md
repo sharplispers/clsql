@@ -79,3 +79,21 @@ You can test ODBC with SQL Server locally using podman. For example:
    (asdf:load-system :clsql-odbc)
    (clsql:connect (list nil nil nil :connection-string "Server=localhost,1433;Driver=/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so;UID=sa;PWD=yourStrong(!)Password"))
    ```
+
+### MySQL
+
+Using podman:
+
+1. Install required packages
+   - Fedora
+     ```bash
+     mysql-devel mysql-libs
+     ```
+2. Start MySQL container
+   ```bash
+   podman run -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=exampledb -d -p 3306:3306 mysql:latest
+   ```
+3. Connect to DB in Lisp using clsql-mysql
+   ```lisp
+   (clsql:connect '("127.0.0.1" "exampledb" "root" "my-secret-pwd" 3306))
+   ```
