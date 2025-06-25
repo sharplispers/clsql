@@ -590,7 +590,6 @@
               :message
               (format nil "Unknown clsql type ~A." type)))))
 
-#+mysql-client-v4.1
 (defmethod database-prepare (sql-stmt types (database mysql-database) result-types field-names)
   (let* ((mysql-ptr (database-mysql-ptr database))
          (stmt (mysql-stmt-init mysql-ptr)))
@@ -709,7 +708,6 @@
           :types mysql-types
           :field-names field-names)))))
 
-#+mysql-client-v4.1
 (defmethod database-bind-parameter ((stmt mysql-stmt) position value)
   ;; FIXME: will need to allocate bind structure. This should probably be
   ;; done in C since the API is not mature and may change
@@ -730,7 +728,6 @@
          (warn "Unknown input bind type ~D." type))
         )))))
 
-#+mysql-client-v4.1
 (defmethod database-run-prepared ((stmt mysql-stmt))
   (print 'a1)
   (when (input-bind stmt)
@@ -753,7 +750,6 @@
                       (mysql-stmt-error (stmt stmt)))))
   (database-fetch-prepared-rows stmt))
 
-#+mysql-client-v4.1
 (defun database-fetch-prepared-rows (stmt)
   (do ((rc (mysql-stmt-fetch (stmt stmt)) (mysql-stmt-fetch (stmt stmt)))
        (num-fields (num-fields stmt))
@@ -806,11 +802,9 @@
 
 
 
-#+mysql-client-v4.1
 (defmethod database-free-prepared ((stmt mysql-stmt))
   (with-slots (stmt) stmt
-    (mysql-stmt-close stmt))
-  )
+    (mysql-stmt-close stmt)))
 
 
 ;;; Database capabilities
@@ -818,28 +812,12 @@
 (defmethod db-type-use-column-on-drop-index? ((db-type (eql :mysql)))
   t)
 
-(defmethod db-type-has-views? ((db-type (eql :mysql)))
-  #+mysql-client-v5 t
-  #-mysql-client-v5 nil)
-
-(defmethod db-type-has-subqueries? ((db-type (eql :mysql)))
-  #+(or mysql-client-v4.1 mysql-client-v5) t
-  #-(or mysql-client-v4.1 mysql-client-v5) nil)
-
-(defmethod db-type-has-boolean-where? ((db-type (eql :mysql)))
-  #+(or mysql-client-v4.1 mysql-client-v5) t
-  #-(or mysql-client-v4.1 mysql-client-v5) nil)
-
-(defmethod db-type-has-union? ((db-type (eql :mysql)))
-  (not (eql (schar mysql::*mysql-client-info* 0) #\3)))
-
 (defmethod db-type-transaction-capable? ((db-type (eql :mysql)) database)
   (let ((tuple (car (database-query "SHOW VARIABLES LIKE 'HAVE_INNODB'" database :auto nil))))
     (and tuple (string-equal "YES" (second tuple)))))
 
 (defmethod db-type-has-prepared-stmt? ((db-type (eql :mysql)))
-  #+(or mysql-client-v4.1 mysql-client-v5) t
-  #-(or mysql-client-v4.1 mysql-client-v5) nil)
+  t)
 
 (defmethod db-type-has-auto-increment? ((db-type (eql :mysql)))
   t)

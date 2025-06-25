@@ -126,6 +126,7 @@
 (uffi:def-foreign-type mysql-mysql-res (* :void))
 (uffi:def-foreign-type mysql-field (* :void))
 (uffi:def-foreign-type mysql-bind (* :void))
+(uffi:def-foreign-type mysql-time (* :void))
 
 ;;;; The Foreign C routines
 (declaim (inline mysql-init))
@@ -355,16 +356,13 @@
   :module "clsql-mysql"
   :returning :unsigned-int)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-foreign-type mysql-stmt-ptr :pointer-void)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_init"
     ((res mysql-mysql-res))
   :module "clsql-mysql"
   :returning mysql-stmt-ptr)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_prepare"
     ((stmt mysql-stmt-ptr)
      (query :cstring)
@@ -372,70 +370,59 @@
   :module "clsql-mysql"
   :returning :int)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_param_count"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning :unsigned-int)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_bind_param"
     ((stmt mysql-stmt-ptr)
      (bind mysql-bind))
   :module "clsql-mysql"
   :returning :short)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_bind_result"
     ((stmt mysql-stmt-ptr)
      (bind mysql-bind))
   :module "clsql-mysql"
   :returning :short)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_result_metadata"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning mysql-mysql-res)
 
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_execute"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning :int)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_store_result"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning :int)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_fetch"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning :int)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_free_result"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning :short)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_close"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning :short)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_errno"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"
   :returning :unsigned-int)
 
-#+(or mysql-client-v4.1 mysql-client-v5)
 (uffi:def-function "mysql_stmt_error"
     ((stmt mysql-stmt-ptr))
   :module "clsql-mysql"

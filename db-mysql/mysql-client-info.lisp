@@ -26,27 +26,4 @@
     :module "mysql"
     :returning :cstring)
 
-  (setf *mysql-client-info* (uffi:convert-from-cstring (mysql-get-client-info)))
-
-
-  (when (and (stringp *mysql-client-info*)
-             (plusp (length *mysql-client-info*)))
-    (cond
-      ((eql (schar *mysql-client-info* 0) #\3)
-       (pushnew :mysql-client-v3 cl:*features*))
-      ((eql (schar *mysql-client-info* 0) #\4)
-       (pushnew :mysql-client-v4 cl:*features*)
-       (when (and (>= (length *mysql-client-info*) 3)
-                  (string-equal "4.1" *mysql-client-info* :end2 3))
-         (pushnew :mysql-client-v4.1 cl:*features*)))
-      ((eql (schar *mysql-client-info* 0) #\5)
-       (pushnew :mysql-client-v5 cl:*features*)
-       (when (and (>= (length *mysql-client-info*) 3)
-                  (string-equal "5.1" *mysql-client-info* :end2 3))
-         (pushnew :mysql-client-v5.1 cl:*features*)))
-      ((eql (schar *mysql-client-info* 0) #\6)
-       (pushnew :mysql-client-v6 cl:*features*))
-      ((> (mismatch mysql::*mysql-client-info* "MariaDB" :from-end t) 0)
-       (pushnew :mysql-client-v6 cl:*features*))
-      (t
-       (format t "Warning: Unknown mysql client version '~A', verify proper operation." *mysql-client-info*)))))
+  (setf *mysql-client-info* (uffi:convert-from-cstring (mysql-get-client-info))))
