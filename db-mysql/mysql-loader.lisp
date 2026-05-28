@@ -16,36 +16,23 @@
 
 (in-package #:mysql)
 
-;; searches clsql_mysql64 to accomodate both 32-bit and 64-bit libraries on same system
-(defparameter *clsql-mysql-library-candidate-names*
-  `(,@(when (> most-positive-fixnum (expt 2 32)) (list "clsql_mysql64"))
-    "clsql_mysql"))
+(cffi:define-foreign-library clsql-mysql
+  (t (:default "clsql_mysql64" "clsql_mysql")))
 
-(defvar *mysql-library-candidate-names*
-  '("libmysqlclient" "libmysql"))
-
-(defvar *mysql-supporting-libraries* '("c")
-  "Used only by CMU. List of library flags needed to be passed to ld to
-load the MySQL client library succesfully.  If this differs at your site,
-set to the right path before compiling or loading the system.")
-
-(defvar *mysql-library-loaded* nil
-  "T if foreign library was able to be loaded successfully")
+(cffi:define-foreign-library libmysql
+  (t (:default "libmysqlclient" "libmysql")))
 
 (defmethod clsql-sys:database-type-library-loaded ((database-type (eql :mysql)))
-  *mysql-library-loaded*)
+  (and (cffi:foreign-library-loaded-p 'clsql-mysql)
+       (cffi:foreign-library-loaded-p 'libmysql)))
 
 (defmethod clsql-sys:database-type-load-foreign ((database-type (eql :mysql)))
-  (unless *mysql-library-loaded*
-    (clsql:push-library-path clsql-mysql-system::*library-file-dir*)
-
-    (clsql-uffi:find-and-load-foreign-library *mysql-library-candidate-names*
-                                              :module "mysql"
-                                              :supporting-libraries *mysql-supporting-libraries*)
-
-    (clsql-uffi:find-and-load-foreign-library *clsql-mysql-library-candidate-names*
-                                              :module "clsql-mysql"
-                                              :supporting-libraries *mysql-supporting-libraries*)
-    (setq *mysql-library-loaded* t)))
+  (clsql:push-library-path clsql-mysql-system::*library-file-dir*)
+  (setf cffi:*foreign-library-directories*
+        (remove-duplicates (append clsql:*foreign-library-search-paths*
+                                   cffi:*foreign-library-directories*)
+                           :test #'equal))
+  (cffi:load-foreign-library 'clsql-mysql)
+  (cffi:load-foreign-library 'libmysql))
 
 (clsql-sys:database-type-load-foreign :mysql)

@@ -17,7 +17,7 @@
 (in-package #:cl-user)
 
 (defpackage #:mysql
-    (:use #:common-lisp #:clsql-uffi)
+    (:use #:common-lisp)
     (:export
      #:database-library-loaded
 
